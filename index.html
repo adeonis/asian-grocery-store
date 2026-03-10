@@ -50,6 +50,12 @@
     .grid-line-bottom {
       border-bottom: 1px solid #E5DDD2;
     }
+    /* Sidebar */
+    .sidebar { transition: transform 0.3s ease; }
+    .sidebar-backdrop { transition: opacity 0.3s ease; }
+    .sidebar-scroll::-webkit-scrollbar { display: none; }
+    .sidebar-scroll { scrollbar-width: none; }
+    .breadcrumb-sep::before { content: '›'; margin: 0 0.5rem; color: #A69888; }
   </style>
 </head>
 <body class="bg-cream min-h-screen font-sans text-warm-900">
@@ -9264,6 +9270,8 @@
     let searchResults = [];
     let homeTab = 'start';
     let showPantryOnly = false;
+    let sidebarOpen = false;
+    let searchOpen = false;
 
     // --- User State (localStorage-backed) ---
     let shoppingList = [];
@@ -10006,7 +10014,7 @@
 
       if (searchResults.length > 0) {
         resultsContainer.innerHTML = `
-          <div class="mt-4 border-2 border-warm-400 bg-warm-50 max-w-xl">
+          <div class="border-2 border-warm-400 bg-warm-50 shadow-xl">
             <div class="px-4 py-2 border-b border-warm-300 text-sm font-medium text-warm-600 uppercase tracking-wide">
               ${searchResults.length} Results
             </div>
@@ -10040,6 +10048,7 @@
       selectedTechnique = null;
       searchQuery = '';
       searchResults = [];
+      searchOpen = false;
       homeTab = 'start';
       render();
     }
@@ -10055,6 +10064,7 @@
       currentView = 'country';
       searchQuery = '';
       searchResults = [];
+      searchOpen = false;
       render();
     }
 
@@ -10065,6 +10075,7 @@
         selectedIngredient = ingredient;
         selectedCountry = countryKey || ingredient.countryKey;
         currentView = 'ingredient';
+        searchOpen = false;
         render();
       }
     }
@@ -10078,56 +10089,193 @@
           selectedTechnique = technique;
           selectedCountry = countryKey;
           currentView = 'technique';
+          searchOpen = false;
           render();
         }
       }
     }
 
+    // --- Sidebar & Top Bar ---
+    function toggleSidebar() {
+      sidebarOpen = !sidebarOpen;
+      const sidebar = document.getElementById('sidebar');
+      const backdrop = document.getElementById('sidebar-backdrop');
+      if (sidebar) {
+        sidebar.classList.toggle('-translate-x-full', !sidebarOpen);
+        sidebar.classList.toggle('translate-x-0', sidebarOpen);
+      }
+      if (backdrop) backdrop.classList.toggle('hidden', !sidebarOpen);
+      document.body.classList.toggle('overflow-hidden', sidebarOpen && window.innerWidth < 768);
+    }
+
+    function closeSidebar() {
+      sidebarOpen = false;
+      const sidebar = document.getElementById('sidebar');
+      const backdrop = document.getElementById('sidebar-backdrop');
+      if (sidebar) { sidebar.classList.add('-translate-x-full'); sidebar.classList.remove('translate-x-0'); }
+      if (backdrop) backdrop.classList.add('hidden');
+      document.body.classList.remove('overflow-hidden');
+    }
+
+    function toggleSearch() {
+      searchOpen = !searchOpen;
+      if (!searchOpen) { searchQuery = ''; searchResults = []; }
+      render();
+      if (searchOpen) {
+        setTimeout(() => { const input = document.getElementById('search-input'); if (input) input.focus(); }, 50);
+      }
+    }
+
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') {
+        if (sidebarOpen) closeSidebar();
+        if (searchOpen) { searchOpen = false; searchQuery = ''; searchResults = []; render(); }
+      }
+    });
+
+    function renderSidebar() {
+      const unchecked = shoppingList.filter(i => !i.checked).length;
+      return `
+        <aside id="sidebar" class="sidebar fixed top-0 left-0 h-full w-60 bg-warm-900 text-warm-100 z-40 flex flex-col
+          ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0">
+          <div class="p-5 border-b border-warm-700">
+            <button onclick="goHome(); closeSidebar();" class="text-left">
+              <h1 class="text-lg font-bold text-white tracking-tight">Asian Grocery Guide</h1>
+              <p class="text-xs text-warm-400 mt-1 leading-relaxed">A reference for navigating your local Asian grocery store with confidence.</p>
+            </button>
+          </div>
+          <nav class="flex-1 overflow-y-auto sidebar-scroll py-3">
+            <div class="px-4 py-2 text-xs font-medium text-warm-500 uppercase tracking-widest">Cuisines</div>
+            ${Object.entries(ingredientDatabase).map(([key, country]) => `
+              <button
+                onclick="selectCountry('${key}'); closeSidebar();"
+                class="w-full flex items-center gap-3 px-5 py-2.5 text-left transition-colors
+                  ${selectedCountry === key && currentView !== 'home' && currentView !== 'shopping-list'
+                    ? 'bg-accent text-white'
+                    : 'text-warm-300 hover:bg-warm-800 hover:text-white'}"
+              >
+                <span class="text-lg">${country.flag}</span>
+                <span class="text-sm font-medium">${country.name}</span>
+                <span class="ml-auto text-xs ${selectedCountry === key && currentView !== 'home' && currentView !== 'shopping-list' ? 'text-white/60' : 'text-warm-600'}">${Object.values(country.categories).flat().length}</span>
+              </button>
+            `).join('')}
+            <div class="border-t border-warm-700 my-3 mx-4"></div>
+            <button onclick="goHome(); closeSidebar();"
+              class="w-full flex items-center gap-3 px-5 py-2.5 text-left transition-colors
+                ${currentView === 'home' ? 'bg-warm-800 text-white' : 'text-warm-300 hover:bg-warm-800 hover:text-white'}">
+              <span class="text-lg">🏠</span>
+              <span class="text-sm font-medium">Home</span>
+            </button>
+            <button onclick="goToShoppingList(); closeSidebar();"
+              class="w-full flex items-center gap-3 px-5 py-2.5 text-left transition-colors
+                ${currentView === 'shopping-list' ? 'bg-warm-800 text-white' : 'text-warm-300 hover:bg-warm-800 hover:text-white'}">
+              <span class="text-lg">🛒</span>
+              <span class="text-sm font-medium">Shopping List</span>
+              ${unchecked > 0 ? `<span class="ml-auto bg-accent text-white text-xs font-bold w-5 h-5 flex items-center justify-center rounded-full">${unchecked}</span>` : ''}
+            </button>
+          </nav>
+        </aside>
+      `;
+    }
+
+    function renderBreadcrumb() {
+      if (currentView === 'home') {
+        return '<span class="font-semibold text-warm-900 text-sm md:text-base">Asian Grocery Guide</span>';
+      }
+      if (currentView === 'shopping-list') {
+        return `<div class="flex items-center text-sm text-warm-600">
+          <button onclick="goHome()" class="hover:text-accent transition-colors">Home</button>
+          <span class="breadcrumb-sep"></span>
+          <span class="font-medium text-warm-900">Shopping List</span>
+        </div>`;
+      }
+      if (currentView === 'country') {
+        const country = ingredientDatabase[selectedCountry];
+        return `<div class="flex items-center text-sm text-warm-600">
+          <button onclick="goHome()" class="hover:text-accent transition-colors hidden md:inline">Home</button>
+          <span class="breadcrumb-sep hidden md:inline"></span>
+          <span class="font-medium text-warm-900">${country.flag} ${country.name}</span>
+        </div>`;
+      }
+      if (currentView === 'ingredient') {
+        const country = ingredientDatabase[selectedCountry];
+        return `<div class="flex items-center text-sm text-warm-600 truncate">
+          <button onclick="goHome()" class="hover:text-accent transition-colors hidden md:inline flex-shrink-0">Home</button>
+          <span class="breadcrumb-sep hidden md:inline flex-shrink-0"></span>
+          <button onclick="selectCountry('${selectedCountry}')" class="hover:text-accent transition-colors flex-shrink-0">${country.flag} ${country.name}</button>
+          <span class="breadcrumb-sep flex-shrink-0"></span>
+          <span class="font-medium text-warm-900 truncate">${selectedIngredient.name}</span>
+        </div>`;
+      }
+      if (currentView === 'technique') {
+        const country = ingredientDatabase[selectedCountry];
+        return `<div class="flex items-center text-sm text-warm-600 truncate">
+          <button onclick="goHome()" class="hover:text-accent transition-colors hidden md:inline flex-shrink-0">Home</button>
+          <span class="breadcrumb-sep hidden md:inline flex-shrink-0"></span>
+          <button onclick="selectCountry('${selectedCountry}')" class="hover:text-accent transition-colors flex-shrink-0">${country.flag} ${country.name}</button>
+          <span class="breadcrumb-sep flex-shrink-0"></span>
+          <span class="font-medium text-warm-900 truncate">${selectedTechnique.name}</span>
+        </div>`;
+      }
+      return '';
+    }
+
+    function renderTopBar() {
+      return `
+        <header class="sticky top-0 z-20 bg-cream border-b border-warm-300">
+          <div class="flex items-center gap-3 px-4 py-3">
+            <button onclick="toggleSidebar()" class="md:hidden p-1 text-warm-700 hover:text-accent" aria-label="Toggle menu">
+              <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/>
+              </svg>
+            </button>
+            <div class="flex-1 min-w-0">${renderBreadcrumb()}</div>
+            <button onclick="toggleSearch()" class="p-2 text-warm-600 hover:text-accent transition-colors flex-shrink-0" aria-label="Search">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+              </svg>
+            </button>
+            <button onclick="goToShoppingList()" class="relative p-2 text-warm-600 hover:text-accent transition-colors flex-shrink-0" aria-label="Shopping list">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 100 4 2 2 0 000-4z"/>
+              </svg>
+              <span id="shopping-badge" class="absolute -top-1 -right-1 w-4 h-4 bg-accent text-white text-[10px] font-bold rounded-full items-center justify-center" style="display:none">0</span>
+            </button>
+          </div>
+          ${searchOpen ? `
+            <div class="px-4 pb-3 border-t border-warm-200">
+              <div class="relative">
+                <input id="search-input" type="text" placeholder="Search ingredients..."
+                  value="${searchQuery}" oninput="handleSearch(this.value)"
+                  onkeydown="if(event.key==='Escape'){toggleSearch()}"
+                  class="w-full px-4 py-2.5 text-sm border-2 border-warm-400 bg-transparent focus:border-accent focus:outline-none placeholder-warm-500"
+                />
+                <div id="search-results" class="absolute left-0 right-0 top-full mt-1 z-50"></div>
+              </div>
+            </div>
+          ` : ''}
+        </header>
+      `;
+    }
+
+    function renderContent() {
+      if (currentView === 'home') return renderHome();
+      if (currentView === 'country') return renderCountry();
+      if (currentView === 'ingredient') return renderIngredient();
+      if (currentView === 'technique') return renderTechnique();
+      if (currentView === 'shopping-list') return renderShoppingList();
+      return renderHome();
+    }
+
     // Render functions
     function renderHome() {
       return `
-        <!-- Vignelli-inspired minimal header -->
-        <header class="border-b border-warm-300">
-          <div class="max-w-7xl mx-auto px-6 md:px-12 py-8 md:py-12">
-            <div class="flex items-start justify-between">
-              <div>
-                <h1 class="text-4xl md:text-6xl font-bold tracking-tight text-warm-900">Asian Grocery Guide</h1>
-                <p class="text-lg md:text-xl text-warm-600 mt-2 max-w-2xl">A reference for navigating the Asian grocery store with confidence.</p>
-              </div>
-              <button onclick="goToShoppingList()" class="relative p-2 text-warm-600 hover:text-accent transition-colors flex-shrink-0 mt-2" title="Shopping List">
-                <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 100 4 2 2 0 000-4z"/>
-                </svg>
-                <span id="shopping-badge" class="absolute -top-1 -right-1 w-5 h-5 bg-accent text-white text-xs font-bold rounded-full items-center justify-center" style="display:none">0</span>
-              </button>
-            </div>
-          </div>
-        </header>
-
-        <!-- Search -->
-        <div class="border-b border-warm-300">
-          <div class="max-w-7xl mx-auto px-6 md:px-12 py-6">
-            <div class="relative max-w-xl">
-              <input
-                id="search-input"
-                type="text"
-                placeholder="Search ingredients..."
-                oninput="handleSearch(this.value)"
-                class="w-full px-4 py-3 text-lg border-2 border-warm-400 bg-transparent focus:border-accent focus:outline-none placeholder-warm-500"
-              />
-            </div>
-
-            <div id="search-results"></div>
-          </div>
-        </div>
-
         <!-- Tab Navigation -->
         <div class="border-b border-warm-300">
           <div class="max-w-7xl mx-auto px-6 md:px-12">
             <nav class="flex gap-0 overflow-x-auto -mb-px" style="scrollbar-width: none;">
               ${[
                 { id: 'start', label: 'Start Here' },
-                { id: 'country', label: 'By Country' },
                 { id: 'region', label: 'By Region' },
                 { id: 'flavor', label: 'By Flavor' },
                 { id: 'pantry', label: 'By Pantry' },
@@ -10180,7 +10328,7 @@
         case 'flavor': return renderTabFlavor();
         case 'pantry': return renderTabPantry();
         case 'technique': return renderTabTechnique();
-        default: return renderTabCountry();
+        default: return renderTabStartHere();
       }
     }
 
@@ -10301,31 +10449,11 @@
         <section class="text-center py-12 border-t border-warm-300">
           <h3 class="text-2xl font-bold text-warm-900 mb-3">Ready to explore more?</h3>
           <p class="text-warm-600 mb-6 max-w-xl mx-auto">You've got the basics. Now dive into 9 cuisines, hundreds of ingredients, regional dishes, and cooking techniques.</p>
-          <button onclick="switchHomeTab('country')" class="inline-flex items-center gap-2 bg-accent text-white px-8 py-3 font-medium hover:bg-warm-900 transition-colors">
+          <button onclick="selectCountry('china')" class="inline-flex items-center gap-2 bg-accent text-white px-8 py-3 font-medium hover:bg-warm-900 transition-colors">
             <span>Browse All Cuisines</span>
             <span>→</span>
           </button>
         </section>
-      `;
-    }
-
-    function renderTabCountry() {
-      return `
-        <h2 class="text-sm font-medium text-warm-600 uppercase tracking-widest mb-8">Select a Cuisine</h2>
-        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-px bg-warm-300">
-          ${Object.entries(ingredientDatabase).map(([key, country]) => `
-            <button
-              onclick="selectCountry('${key}')"
-              class="group bg-cream hover:bg-warm-200 p-6 md:p-8 transition-colors text-center"
-            >
-              <div class="text-4xl md:text-5xl mb-4">${country.flag}</div>
-              <div class="font-semibold text-warm-900 text-lg">${country.name}</div>
-              <div class="text-sm text-warm-500 mt-1">
-                ${Object.values(country.categories).flat().length} items
-              </div>
-            </button>
-          `).join('')}
-        </div>
       `;
     }
 
@@ -10441,25 +10569,15 @@
     function renderCountry() {
       const country = ingredientDatabase[selectedCountry];
       return `
-        <!-- Country Header -->
-        <header class="border-b border-warm-300">
-          <div class="max-w-7xl mx-auto px-6 md:px-12 py-6">
-            <button onclick="goHome()" class="inline-flex items-center gap-2 text-accent hover:text-warm-900 transition-colors text-sm font-medium uppercase tracking-wide mb-6">
-              <span>←</span>
-              <span>All Cuisines</span>
-            </button>
-            <div class="flex items-center gap-5">
-              <span class="text-5xl md:text-6xl">${country.flag}</span>
-              <div>
-                <h1 class="text-3xl md:text-5xl font-bold text-warm-900 tracking-tight">${country.name}</h1>
-                <p class="text-warm-600 mt-1 text-lg max-w-2xl">${country.description}</p>
-              </div>
+        <main class="max-w-7xl mx-auto px-6 md:px-12 py-8">
+          <!-- Country Title -->
+          <div class="flex items-center gap-5 mb-8 pb-8 border-b border-warm-300">
+            <span class="text-5xl md:text-6xl">${country.flag}</span>
+            <div>
+              <h1 class="text-3xl md:text-5xl font-bold text-warm-900 tracking-tight">${country.name}</h1>
+              <p class="text-warm-600 mt-1 text-lg max-w-2xl">${country.description}</p>
             </div>
           </div>
-        </header>
-
-        <!-- Ingredient Grid -->
-        <main class="max-w-7xl mx-auto px-6 md:px-12 py-12">
           <!-- Cooking Techniques Section -->
           ${techniqueDatabase[selectedCountry] ? `
             <section class="mb-16">
@@ -10606,17 +10724,7 @@
       const ingredientCategory = Object.entries(country.categories).find(([_, items]) => items.some(i => i.id === ingredient.id))?.[0] || '';
 
       return `
-        <!-- Ingredient Header -->
-        <header class="border-b border-warm-300">
-          <div class="max-w-5xl mx-auto px-6 md:px-12 py-6">
-            <button onclick="currentView = 'country'; render();" class="inline-flex items-center gap-2 text-accent hover:text-warm-900 transition-colors text-sm font-medium uppercase tracking-wide mb-6">
-              <span>←</span>
-              <span>Back to ${country.name}</span>
-            </button>
-          </div>
-        </header>
-
-        <main class="max-w-5xl mx-auto px-6 md:px-12 py-12">
+        <main class="max-w-5xl mx-auto px-6 md:px-12 py-8">
           <!-- Hero Section -->
           <div class="grid md:grid-cols-[auto,1fr] gap-8 md:gap-12 mb-16 pb-12 border-b border-warm-300">
             ${renderImage(ingredient.image, 'large', ingredientCategory)}
@@ -10847,17 +10955,7 @@
       }
 
       return `
-        <!-- Technique Header -->
-        <header class="border-b border-warm-300">
-          <div class="max-w-5xl mx-auto px-6 md:px-12 py-6">
-            <button onclick="currentView = 'country'; render();" class="inline-flex items-center gap-2 text-accent hover:text-warm-900 transition-colors text-sm font-medium uppercase tracking-wide mb-6">
-              <span>←</span>
-              <span>Back to ${country.name}</span>
-            </button>
-          </div>
-        </header>
-
-        <main class="max-w-5xl mx-auto px-6 md:px-12 py-12">
+        <main class="max-w-5xl mx-auto px-6 md:px-12 py-8">
           <!-- Hero Section -->
           <div class="mb-12 pb-12 border-b border-warm-300">
             <div class="flex items-center gap-2 mb-3">
@@ -11101,21 +11199,11 @@
     // --- Shopping List View ---
     function renderShoppingList() {
       return `
-        <header class="border-b border-warm-300">
-          <div class="max-w-5xl mx-auto px-6 md:px-12 py-6">
-            <button onclick="goHome()" class="inline-flex items-center gap-2 text-accent hover:text-warm-900 transition-colors text-sm font-medium uppercase tracking-wide mb-6">
-              <span>←</span>
-              <span>Home</span>
-            </button>
-            <div class="flex items-center justify-between">
-              <div>
-                <h1 class="text-3xl md:text-5xl font-bold text-warm-900 tracking-tight">Shopping List</h1>
-                <p class="text-warm-600 mt-1">${shoppingList.length === 0 ? 'No items yet' : shoppingList.filter(i => !i.checked).length + ' remaining · ' + shoppingList.filter(i => i.checked).length + ' checked off'}</p>
-              </div>
-            </div>
-          </div>
-        </header>
         <main class="max-w-5xl mx-auto px-6 md:px-12 py-8">
+          <div class="mb-8">
+            <h1 class="text-3xl md:text-4xl font-bold text-warm-900 tracking-tight">Shopping List</h1>
+            <p class="text-warm-600 mt-1">${shoppingList.length === 0 ? 'No items yet' : shoppingList.filter(i => !i.checked).length + ' remaining · ' + shoppingList.filter(i => i.checked).length + ' checked off'}</p>
+          </div>
           <div id="shopping-list-content">
             ${renderShoppingListItems()}
           </div>
@@ -11192,37 +11280,15 @@
     // Main render function
     function render() {
       const app = document.getElementById('app');
-
-      if (currentView === 'home') {
-        app.innerHTML = renderHome();
-      } else if (currentView === 'country') {
-        app.innerHTML = renderCountry();
-      } else if (currentView === 'ingredient') {
-        app.innerHTML = renderIngredient();
-      } else if (currentView === 'technique') {
-        app.innerHTML = renderTechnique();
-      } else if (currentView === 'shopping-list') {
-        app.innerHTML = renderShoppingList();
-      }
-      // Scroll to top on view change
+      app.innerHTML = `
+        ${renderSidebar()}
+        <div id="sidebar-backdrop" onclick="closeSidebar()" class="fixed inset-0 bg-black/40 z-30 md:hidden sidebar-backdrop ${sidebarOpen ? '' : 'hidden'}"></div>
+        <div class="md:ml-60">
+          ${renderTopBar()}
+          <div id="content-area">${renderContent()}</div>
+        </div>
+      `;
       window.scrollTo(0, 0);
-      // Floating shopping cart button on non-home views
-      const existingFab = document.getElementById('shopping-fab');
-      if (existingFab) existingFab.remove();
-      if (currentView !== 'home' && currentView !== 'shopping-list') {
-        const fab = document.createElement('div');
-        fab.id = 'shopping-fab';
-        fab.innerHTML = `
-          <button onclick="goToShoppingList()" class="fixed bottom-6 right-6 w-14 h-14 bg-warm-900 text-white rounded-full shadow-lg flex items-center justify-center hover:bg-accent transition-colors z-50" title="Shopping List">
-            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 100 4 2 2 0 000-4z"/>
-            </svg>
-            <span id="shopping-badge" class="absolute -top-1 -right-1 w-5 h-5 bg-accent text-white text-xs font-bold rounded-full flex items-center justify-center" style="display:none">0</span>
-          </button>
-        `;
-        document.body.appendChild(fab);
-      }
-      // Update shopping badge after every render
       updateShoppingBadge();
     }
 

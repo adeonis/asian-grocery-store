@@ -8,34 +8,9 @@
   <meta property="og:title" content="Asian Grocery Guide">
   <meta property="og:description" content="Demystifying the Asian grocery store — ingredients from 9 cuisines explained, with starter pantries, recipes, and techniques.">
   <meta property="og:type" content="website">
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-    tailwind.config = {
-      theme: {
-        extend: {
-          colors: {
-            cream: '#FAF8F5',
-            warm: {
-              50: '#FDFCFA',
-              100: '#FAF8F5',
-              200: '#F2EDE6',
-              300: '#E5DDD2',
-              400: '#C9BFB0',
-              500: '#A69888',
-              600: '#857668',
-              700: '#5C5047',
-              800: '#3D352E',
-              900: '#1F1B17'
-            },
-            accent: '#D64045'
-          },
-          fontFamily: {
-            sans: ['-apple-system', 'BlinkMacSystemFont', 'Helvetica Neue', 'Helvetica', 'Arial', 'sans-serif']
-          }
-        }
-      }
-    }
-  </script>
+  <!-- Compiled Tailwind (theme lives in tailwind.config.js; rebuild with:
+       npx tailwindcss@3 -c tailwind.config.js -i tailwind.source.css -o tailwind.css --minify) -->
+  <link rel="stylesheet" href="tailwind.css">
   <style>
     * {
       -webkit-font-smoothing: antialiased;
@@ -10076,9 +10051,32 @@
           scored.push({ ...dish, countryName: ingredientDatabase[dish.countryKey].name, _type: 'dish', _score: score });
         }
       });
+      // Techniques: stir-frying, tempering spices, fermentation...
+      Object.entries(techniqueDatabase).forEach(([countryKey, group]) => {
+        group.techniques.forEach(t => {
+          const name = t.name.toLowerCase();
+          let score = 0;
+          if (name === q) score = 90;
+          else if (name.startsWith(q)) score = 70;
+          else if (name.includes(q)) score = 50;
+          else if (`${t.native || ''} ${t.subtitle || ''}`.toLowerCase().includes(q)) score = 25;
+          if (score > 0) {
+            scored.push({ id: t.id, name: t.name, countryKey, countryName: ingredientDatabase[countryKey].name, _type: 'technique', _score: score });
+          }
+        });
+      });
       scored.sort((a, b) => b._score - a._score);
       searchResults = scored.slice(0, 30);
       updateSearchResults();
+    }
+
+    // Open the Nth search result, whatever its type
+    function openSearchResult(index) {
+      const r = searchResults[index];
+      if (!r) return;
+      if (r._type === 'dish') selectDish(r.id, r.countryKey);
+      else if (r._type === 'technique') selectTechnique(r.id, r.countryKey);
+      else selectIngredientById(r.id, r.countryKey);
     }
 
     // Update only the search results area (not the whole page)
@@ -10093,27 +10091,19 @@
               ${searchResults.length} Results
             </div>
             <div class="max-h-80 overflow-y-auto divide-y divide-warm-200">
-              ${searchResults.map((result) => result._type === 'dish' ? `
+              ${searchResults.map((result, idx) => `
                 <button
-                  onclick="selectDish('${result.id}', '${result.countryKey}')"
+                  onclick="openSearchResult(${idx})"
                   class="w-full px-4 py-3 text-left hover:bg-warm-200 transition-colors flex items-center gap-4"
                 >
-                  <div class="w-12 h-12 flex-shrink-0 bg-accent/10 text-accent flex items-center justify-center text-xl">🍽</div>
+                  ${result._type === 'dish'
+                    ? '<div class="w-12 h-12 flex-shrink-0 bg-accent/10 text-accent flex items-center justify-center text-xl">🍽</div>'
+                    : result._type === 'technique'
+                    ? '<div class="w-12 h-12 flex-shrink-0 bg-warm-900 text-warm-50 flex items-center justify-center text-xl">🔥</div>'
+                    : renderImage(result.image, 'small', result.category)}
                   <div class="flex-1 min-w-0">
-                    <div class="font-medium text-warm-900">${result.name}</div>
-                    <div class="text-sm text-warm-600">${result.countryName} · Dish — see what to buy</div>
-                  </div>
-                  <span class="text-accent font-medium">→</span>
-                </button>
-              ` : `
-                <button
-                  onclick="selectIngredientById('${result.id}', '${result.countryKey}')"
-                  class="w-full px-4 py-3 text-left hover:bg-warm-200 transition-colors flex items-center gap-4"
-                >
-                  ${renderImage(result.image, 'small', result.category)}
-                  <div class="flex-1 min-w-0">
-                    <div class="font-medium text-warm-900">${favorites.has(result.id) ? '<span class="text-yellow-500 mr-1">★</span>' : ''}${result.name}</div>
-                    <div class="text-sm text-warm-600">${result.countryName} · ${result.category}</div>
+                    <div class="font-medium text-warm-900">${!result._type && favorites.has(result.id) ? '<span class="text-yellow-500 mr-1">★</span>' : ''}${result.name}</div>
+                    <div class="text-sm text-warm-600">${result.countryName} · ${result._type === 'dish' ? 'Dish — see what to buy' : result._type === 'technique' ? 'Cooking technique' : result.category}</div>
                   </div>
                   <span class="text-accent font-medium">→</span>
                 </button>
@@ -10376,7 +10366,7 @@
               <div class="relative">
                 <input id="search-input" type="text" placeholder="Search ingredients... (try 'gochujang' or 'umami')"
                   value="${searchQuery}" oninput="handleSearch(this.value)"
-                  onkeydown="if(event.key==='Escape'){toggleSearch()} else if(event.key==='Enter'&&searchResults.length>0){const r=searchResults[0]; r._type==='dish'?selectDish(r.id,r.countryKey):selectIngredientById(r.id,r.countryKey)}"
+                  onkeydown="if(event.key==='Escape'){toggleSearch()} else if(event.key==='Enter'){openSearchResult(0)}"
                   class="w-full px-4 py-2.5 text-sm border-2 border-warm-400 bg-transparent focus:border-accent focus:outline-none placeholder-warm-500"
                 />
                 <div id="search-results" class="absolute left-0 right-0 top-full mt-1 z-50"></div>
@@ -10589,9 +10579,26 @@
       `;
     }
 
+    // How many of a dish's ingredients are already starred in My Pantry
+    function dishPantryCoverage(dish) {
+      let owned = 0;
+      dish.ingredients.forEach(n => {
+        const m = findIngredientByName(n, dish.countryKey);
+        if (m && favorites.has(m.id)) owned++;
+      });
+      return { owned, total: dish.ingredients.length };
+    }
+
+    let rankByPantry = false;
+    function togglePantryRank() {
+      rankByPantry = !rankByPantry;
+      render();
+    }
+
     function dishCard(dish) {
       const country = ingredientDatabase[dish.countryKey];
       const matched = dish.ingredients.filter(n => findIngredientByName(n, dish.countryKey)).length;
+      const { owned, total } = favorites.size > 0 ? dishPantryCoverage(dish) : { owned: 0, total: dish.ingredients.length };
       return `
         <button onclick="selectDish('${dish.id}', '${dish.countryKey}')"
           class="bg-cream border border-warm-300 p-5 text-left hover:border-accent hover:bg-warm-100 transition-colors group">
@@ -10604,13 +10611,29 @@
           <div class="font-semibold text-warm-900 text-lg group-hover:text-accent transition-colors">${dish.name}</div>
           <div class="text-sm text-warm-500">${dish.native || ''}</div>
           <div class="text-sm text-warm-600 mt-1">${dish.desc}</div>
-          <div class="text-xs text-warm-500 mt-3">${dish.ingredients.length} ingredients · ${matched} in this guide</div>
+          <div class="text-xs text-warm-500 mt-3 flex items-center gap-2 flex-wrap">
+            <span>${dish.ingredients.length} ingredients · ${matched} in this guide</span>
+            ${owned > 0 ? `<span class="text-yellow-600 font-medium">★ you have ${owned}/${total}</span>` : ''}
+          </div>
         </button>
       `;
     }
 
     function renderDishGrid() {
       const q = dishFilter.toLowerCase().trim();
+      if (rankByPantry && !q) {
+        const ranked = allDishEntries
+          .map(d => ({ d, c: dishPantryCoverage(d) }))
+          .sort((a, b) => (b.c.owned / b.c.total) - (a.c.owned / a.c.total) || b.c.owned - a.c.owned);
+        const cookable = ranked.filter(r => r.c.owned > 0);
+        if (cookable.length === 0) {
+          return `<p class="text-warm-500 py-8">Nothing in My Pantry yet — star ingredients (☆) as you browse and this view will show which dishes you're closest to cooking.</p>`;
+        }
+        return `
+          <p class="text-warm-600 mb-6">Sorted by how close you are — dishes at the top need the fewest new purchases.</p>
+          <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-4">${cookable.map(r => dishCard(r.d)).join('')}</div>
+        `;
+      }
       if (q) {
         const matches = allDishEntries.filter(d =>
           `${d.name} ${d.native || ''} ${d.desc} ${d.ingredients.join(' ')}`.toLowerCase().includes(q));
@@ -10646,10 +10669,15 @@
           <h2 class="text-3xl md:text-4xl font-bold text-warm-900 mb-4">Ate it at a restaurant? Make it at home.</h2>
           <p class="text-xl text-warm-600 leading-relaxed max-w-3xl">Pick the dish you already love and we'll decode exactly what to buy at the Asian grocery store — every ingredient links to a guide that tells you what it looks like, what brand to grab, and how to use the rest of the jar.</p>
         </div>
-        <div class="mb-8 max-w-xl">
+        <div class="mb-8 flex flex-col sm:flex-row gap-3 sm:items-center">
           <input type="text" placeholder="Search ${allDishEntries.length} dishes... (try 'pad thai', 'curry', 'dumpling')"
             value="${dishFilter}" oninput="filterDishes(this.value)"
-            class="w-full px-4 py-3 border-2 border-warm-400 bg-transparent focus:border-accent focus:outline-none placeholder-warm-500">
+            class="w-full max-w-xl px-4 py-3 border-2 border-warm-400 bg-transparent focus:border-accent focus:outline-none placeholder-warm-500">
+          <button onclick="togglePantryRank()"
+            class="px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors ${rankByPantry ? 'bg-warm-900 text-white' : 'border border-warm-400 text-warm-600 hover:bg-warm-200'}"
+            title="Rank dishes by how many ingredients you've starred into My Pantry">
+            ★ Cook from My Pantry
+          </button>
         </div>
         <div id="dish-grid">${renderDishGrid()}</div>
       `;
@@ -10674,6 +10702,9 @@
             <h1 class="text-4xl md:text-5xl font-bold text-warm-900 tracking-tight mb-2">${dish.name}</h1>
             ${dish.native ? `<div class="text-2xl text-warm-600 font-medium mb-3">${dish.native}</div>` : ''}
             <p class="text-xl text-warm-700 leading-relaxed mb-6">${dish.desc}</p>
+            ${(() => { const { owned, total } = dishPantryCoverage(dish); return owned > 0
+              ? `<p class="text-sm text-yellow-700 bg-yellow-50 border border-yellow-200 inline-block px-3 py-1.5 mb-4">★ You already have ${owned} of ${total} ingredients in My Pantry</p><br>`
+              : ''; })()}
             <button id="add-dish-btn" onclick="addDishToShoppingList('${dish.id}', '${selectedCountry}')"
               class="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-medium bg-accent text-white hover:bg-warm-800 transition-colors">
               🛒 Add all ${dish.ingredients.length} ingredients to shopping list
@@ -10690,7 +10721,7 @@
                   class="bg-cream p-4 text-left hover:bg-warm-100 transition-colors flex items-start gap-3 group">
                   ${renderImage(match.image, 'small', match.category)}
                   <div class="min-w-0 flex-1">
-                    <div class="font-medium text-warm-900 group-hover:text-accent transition-colors">${name}</div>
+                    <div class="font-medium text-warm-900 group-hover:text-accent transition-colors">${favorites.has(match.id) ? '<span class="text-yellow-500 mr-1" title="In My Pantry">★</span>' : ''}${name}</div>
                     <div class="text-xs text-warm-600 mt-0.5 line-clamp-2">${match.quickDesc}</div>
                   </div>
                   <span class="text-warm-400 group-hover:text-accent mt-1">→</span>

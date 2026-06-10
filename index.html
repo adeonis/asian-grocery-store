@@ -3,7 +3,11 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Asian Grocery Guide</title>
+  <title>Asian Grocery Guide — Shop Your Asian Grocery Store with Confidence</title>
+  <meta name="description" content="A friendly field guide to the Asian grocery store: hundreds of ingredients from 9 cuisines explained — what they are, how to use them, what to buy, and easy first recipes.">
+  <meta property="og:title" content="Asian Grocery Guide">
+  <meta property="og:description" content="Demystifying the Asian grocery store — ingredients from 9 cuisines explained, with starter pantries, recipes, and techniques.">
+  <meta property="og:type" content="website">
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
@@ -56,6 +60,10 @@
     .sidebar-scroll::-webkit-scrollbar { display: none; }
     .sidebar-scroll { scrollbar-width: none; }
     .breadcrumb-sep::before { content: '›'; margin: 0 0.5rem; color: #A69888; }
+    @media print {
+      header, #sidebar, #sidebar-backdrop, .no-print { display: none !important; }
+      body { background: white !important; }
+    }
   </style>
 </head>
 <body class="bg-cream min-h-screen font-sans text-warm-900">
@@ -9362,8 +9370,7 @@
     }
 
     function goToShoppingList() {
-      currentView = 'shopping-list';
-      render();
+      navigate('/list');
     }
 
     // Load user state immediately
@@ -9939,11 +9946,18 @@
     };
 
     // Store ingredients by ID for easy lookup
-    const ingredientLookup = {};
+    const ingredientLookup = {};      // id -> entry (first match; fallback when country unknown)
+    const ingredientIndex = {};       // "country/id" -> entry (handles ids shared across countries)
+    const ingredientsByName = {};     // lowercase name -> entry (for cross-linking "Pairs With" etc.)
+    const allIngredientEntries = [];
     Object.entries(ingredientDatabase).forEach(([countryKey, country]) => {
       Object.entries(country.categories).forEach(([categoryName, ingredients]) => {
         ingredients.forEach(ingredient => {
-          ingredientLookup[ingredient.id] = { ...ingredient, countryKey };
+          const entry = { ...ingredient, countryKey, category: categoryName };
+          if (!ingredientLookup[ingredient.id]) ingredientLookup[ingredient.id] = entry;
+          ingredientIndex[`${countryKey}/${ingredient.id}`] = entry;
+          if (!ingredientsByName[ingredient.name.toLowerCase()]) ingredientsByName[ingredient.name.toLowerCase()] = entry;
+          allIngredientEntries.push(entry);
         });
       });
     });
@@ -9959,6 +9973,21 @@
       'Spices': `<svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="20" cy="30" r="12" fill="currentColor" opacity="0.25"/><path d="M28 22l10-10M36 14l4 2M36 12l2-4" stroke="currentColor" opacity="0.2" stroke-width="2" stroke-linecap="round"/><circle cx="20" cy="30" r="6" fill="currentColor" opacity="0.1"/></svg>`,
       'default': `<svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="24" cy="24" r="14" fill="currentColor" opacity="0.25"/><circle cx="24" cy="24" r="8" fill="currentColor" opacity="0.1"/><circle cx="24" cy="24" r="3" fill="currentColor" opacity="0.15"/></svg>`
     };
+
+    // Find an ingredient entry by display name (used to turn "Pairs With" text into links).
+    // Prefers a match from the same country, then an exact name match anywhere, then a
+    // close containment match (guarding against short generic words).
+    function findIngredientByName(name, preferCountry) {
+      const q = name.toLowerCase().trim();
+      const sameCountryExact = allIngredientEntries.find(e => e.countryKey === preferCountry && e.name.toLowerCase() === q);
+      if (sameCountryExact) return sameCountryExact;
+      if (ingredientsByName[q]) return ingredientsByName[q];
+      if (q.length < 5) return null;
+      const sameCountryClose = allIngredientEntries.find(e => e.countryKey === preferCountry &&
+        (e.name.toLowerCase().includes(q) || q.includes(e.name.toLowerCase())));
+      if (sameCountryClose) return sameCountryClose;
+      return allIngredientEntries.find(e => e.name.toLowerCase().includes(q) || q.includes(e.name.toLowerCase())) || null;
+    }
 
     function getPlaceholderSvg(category, sizeClass) {
       const svg = categoryPlaceholders[category] || categoryPlaceholders['default'];
@@ -9993,17 +10022,29 @@
         return;
       }
 
-      searchResults = [];
+      // Score matches so the best hits surface first: name > native/pronunciation >
+      // description > deep fields (what it is, substitutes, pairs with).
+      const q = query.toLowerCase();
+      const scored = [];
       Object.entries(ingredientDatabase).forEach(([countryKey, country]) => {
         Object.entries(country.categories).forEach(([categoryName, ingredients]) => {
           ingredients.forEach(ingredient => {
-            const searchText = `${ingredient.name} ${ingredient.quickDesc} ${ingredient.native || ''}`.toLowerCase();
-            if (searchText.includes(query.toLowerCase())) {
-              searchResults.push({ ...ingredient, countryKey, countryName: country.name, category: categoryName });
+            const name = ingredient.name.toLowerCase();
+            let score = 0;
+            if (name === q) score = 100;
+            else if (name.startsWith(q)) score = 80;
+            else if (name.includes(q)) score = 60;
+            else if (`${ingredient.native || ''} ${ingredient.pronunciation || ''}`.toLowerCase().includes(q)) score = 50;
+            else if (ingredient.quickDesc.toLowerCase().includes(q)) score = 30;
+            else if (`${ingredient.whatIsIt || ''} ${ingredient.substitutes || ''} ${(ingredient.pairsWith || []).join(' ')}`.toLowerCase().includes(q)) score = 10;
+            if (score > 0) {
+              scored.push({ ...ingredient, countryKey, countryName: country.name, category: categoryName, _score: score });
             }
           });
         });
       });
+      scored.sort((a, b) => b._score - a._score);
+      searchResults = scored.slice(0, 30);
       updateSearchResults();
     }
 
@@ -10040,59 +10081,44 @@
       }
     }
 
-    // Navigation
+    // Navigation — every destination is a hash route, so the browser back button,
+    // bookmarks, and shared links all work. navigate() writes the hash; applyRoute()
+    // (defined near the bottom) reads it and renders.
+    function navigate(path) {
+      const newHash = '#' + path;
+      if (location.hash === newHash) {
+        applyRoute();
+      } else {
+        location.hash = newHash;
+      }
+    }
+
     function goHome() {
-      currentView = 'home';
-      selectedCountry = null;
-      selectedIngredient = null;
-      selectedTechnique = null;
-      searchQuery = '';
-      searchResults = [];
-      searchOpen = false;
-      homeTab = 'start';
-      render();
+      navigate('/');
     }
 
     function switchHomeTab(tab) {
-      homeTab = tab;
-      currentView = 'home';
-      render();
+      navigate(tab === 'start' ? '/' : '/tab/' + tab);
     }
 
     function selectCountry(countryKey) {
-      selectedCountry = countryKey;
-      currentView = 'country';
-      searchQuery = '';
-      searchResults = [];
-      searchOpen = false;
-      render();
+      navigate('/c/' + countryKey);
     }
 
-    // Fixed: Use ingredient ID to look up the full ingredient object
     function selectIngredientById(ingredientId, countryKey) {
-      const ingredient = ingredientLookup[ingredientId];
+      const ingredient = ingredientIndex[`${countryKey}/${ingredientId}`] || ingredientLookup[ingredientId];
       if (ingredient) {
-        selectedIngredient = ingredient;
-        selectedCountry = countryKey || ingredient.countryKey;
-        currentView = 'ingredient';
-        searchOpen = false;
-        render();
+        navigate('/i/' + ingredient.countryKey + '/' + ingredientId);
       }
     }
 
-    // Technique navigation
     function selectTechnique(techniqueId, countryKey) {
-      const countryTechniques = techniqueDatabase[countryKey];
-      if (countryTechniques) {
-        const technique = countryTechniques.techniques.find(t => t.id === techniqueId);
-        if (technique) {
-          selectedTechnique = technique;
-          selectedCountry = countryKey;
-          currentView = 'technique';
-          searchOpen = false;
-          render();
-        }
-      }
+      navigate('/t/' + countryKey + '/' + techniqueId);
+    }
+
+    function goToRandomIngredient() {
+      const entry = allIngredientEntries[Math.floor(Math.random() * allIngredientEntries.length)];
+      navigate('/i/' + entry.countryKey + '/' + entry.id);
     }
 
     // --- Sidebar & Top Bar ---
@@ -10130,6 +10156,13 @@
       if (e.key === 'Escape') {
         if (sidebarOpen) closeSidebar();
         if (searchOpen) { searchOpen = false; searchQuery = ''; searchResults = []; render(); }
+        return;
+      }
+      // "/" or Cmd/Ctrl+K opens search from anywhere (unless typing in a field)
+      const typing = ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName);
+      if (!typing && (e.key === '/' || ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k'))) {
+        e.preventDefault();
+        if (!searchOpen) toggleSearch();
       }
     });
 
@@ -10230,6 +10263,16 @@
               </svg>
             </button>
             <div class="flex-1 min-w-0">${renderBreadcrumb()}</div>
+            <button onclick="goToRandomIngredient()" class="p-2 text-warm-600 hover:text-accent transition-colors flex-shrink-0" aria-label="Surprise me with a random ingredient" title="Surprise me — random ingredient">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+                <rect x="4" y="4" width="16" height="16" rx="3"/>
+                <circle cx="9" cy="9" r="0.5" fill="currentColor" stroke-width="1.5"/>
+                <circle cx="15" cy="9" r="0.5" fill="currentColor" stroke-width="1.5"/>
+                <circle cx="9" cy="15" r="0.5" fill="currentColor" stroke-width="1.5"/>
+                <circle cx="15" cy="15" r="0.5" fill="currentColor" stroke-width="1.5"/>
+                <circle cx="12" cy="12" r="0.5" fill="currentColor" stroke-width="1.5"/>
+              </svg>
+            </button>
             <button onclick="toggleSearch()" class="p-2 text-warm-600 hover:text-accent transition-colors flex-shrink-0" aria-label="Search">
               <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
@@ -10245,9 +10288,9 @@
           ${searchOpen ? `
             <div class="px-4 pb-3 border-t border-warm-200">
               <div class="relative">
-                <input id="search-input" type="text" placeholder="Search ingredients..."
+                <input id="search-input" type="text" placeholder="Search ingredients... (try 'gochujang' or 'umami')"
                   value="${searchQuery}" oninput="handleSearch(this.value)"
-                  onkeydown="if(event.key==='Escape'){toggleSearch()}"
+                  onkeydown="if(event.key==='Escape'){toggleSearch()} else if(event.key==='Enter'&&searchResults.length>0){selectIngredientById(searchResults[0].id, searchResults[0].countryKey)}"
                   class="w-full px-4 py-2.5 text-sm border-2 border-warm-400 bg-transparent focus:border-accent focus:outline-none placeholder-warm-500"
                 />
                 <div id="search-results" class="absolute left-0 right-0 top-full mt-1 z-50"></div>
@@ -10801,11 +10844,15 @@
               <section>
                 <h2 class="text-sm font-medium text-warm-600 uppercase tracking-widest mb-4">Pairs With</h2>
                 <div class="flex flex-wrap gap-2">
-                  ${ingredient.pairsWith.map(item => `
-                    <span class="border border-warm-400 text-warm-700 px-3 py-1 text-sm">
-                      ${item}
-                    </span>
-                  `).join('')}
+                  ${ingredient.pairsWith.map(item => {
+                    const linked = findIngredientByName(item, selectedCountry);
+                    if (linked && linked.id !== ingredient.id) {
+                      return `<button onclick="selectIngredientById('${linked.id}', '${linked.countryKey}')"
+                        class="border border-accent/50 text-accent px-3 py-1 text-sm hover:bg-accent hover:text-white transition-colors"
+                        title="Open ${linked.name.replace(/"/g, '&quot;')}">${item} →</button>`;
+                    }
+                    return `<span class="border border-warm-400 text-warm-700 px-3 py-1 text-sm">${item}</span>`;
+                  }).join('')}
                 </div>
               </section>
 
@@ -10847,6 +10894,37 @@
               </div>
             </section>
           ` : ''}
+
+          <!-- Keep Exploring -->
+          ${(() => {
+            const cousins = allIngredientEntries.filter(e =>
+              e.countryKey !== selectedCountry && e.name.toLowerCase() === ingredient.name.toLowerCase());
+            const sameCategory = allIngredientEntries.filter(e =>
+              e.countryKey === selectedCountry && e.category === ingredientCategory && e.id !== ingredient.id);
+            const related = [...cousins, ...sameCategory].slice(0, 4);
+            if (related.length === 0) return '';
+            return `
+              <section class="pt-12 mt-12 border-t border-warm-300">
+                <div class="flex items-center justify-between mb-6">
+                  <h2 class="text-sm font-medium text-warm-600 uppercase tracking-widest">Keep Exploring</h2>
+                  <button onclick="goToRandomIngredient()" class="text-sm text-accent hover:underline">Surprise me →</button>
+                </div>
+                <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-px bg-warm-300">
+                  ${related.map(e => `
+                    <button onclick="selectIngredientById('${e.id}', '${e.countryKey}')"
+                      class="bg-cream p-4 text-left hover:bg-warm-100 transition-colors flex items-start gap-3">
+                      ${renderImage(e.image, 'small', e.category)}
+                      <div class="min-w-0">
+                        <div class="font-medium text-warm-900 text-sm">${e.name}</div>
+                        <div class="text-xs text-warm-500 mt-0.5">${ingredientDatabase[e.countryKey].flag} ${ingredientDatabase[e.countryKey].name}${e.countryKey !== selectedCountry ? ' · same ingredient' : ''}</div>
+                        <div class="text-xs text-warm-600 mt-1 line-clamp-2">${e.quickDesc}</div>
+                      </div>
+                    </button>
+                  `).join('')}
+                </div>
+              </section>
+            `;
+          })()}
         </main>
       `;
     }
@@ -11225,20 +11303,29 @@
         `;
       }
 
-      // Group by category
-      const groups = {};
+      // Group by physical store section, in the order you'd walk the store
+      const AISLES = [
+        { label: '🥬 Produce Section', hint: 'Usually at the entrance. Fresh herbs are often near the leafy greens.', categories: ['Produce'] },
+        { label: '🍶 Sauce & Condiment Aisle', hint: 'The heart of the store — shelves are often organized by country.', categories: ['Sauces & Condiments'] },
+        { label: '🍜 Noodle & Rice Aisle', hint: 'Dried noodles are shelf-stable; fresh ones are in the refrigerated case.', categories: ['Noodles & Rice'] },
+        { label: '🫙 Dry Goods & Pantry', hint: 'Dried mushrooms, seaweed, flours, and canned goods.', categories: ['Pantry Staples'] },
+        { label: '🌶️ Spice Aisle', hint: 'Whole spices here are far cheaper than supermarket jars.', categories: ['Spices'] },
+        { label: '🧊 Refrigerated & Frozen', hint: 'Tofu, fish balls, dumpling wrappers — check both the cooler and the freezer chests.', categories: ['Proteins & Tofu', 'Proteins & Seafood'] },
+        { label: '🛒 Other', hint: '', categories: [] }
+      ];
+      const groups = AISLES.map(a => ({ ...a, items: [] }));
       shoppingList.forEach(item => {
-        const cat = item.category || 'Other';
-        if (!groups[cat]) groups[cat] = [];
-        groups[cat].push(item);
+        const group = groups.find(g => g.categories.includes(item.category)) || groups[groups.length - 1];
+        group.items.push(item);
       });
 
       const checkedCount = shoppingList.filter(i => i.checked).length;
 
       return `
-        ${Object.entries(groups).map(([category, items]) => `
+        ${groups.filter(g => g.items.length > 0).map(({ label, hint, items }) => `
           <section class="mb-8">
-            <h2 class="text-xs font-medium text-warm-500 uppercase tracking-widest mb-3 pb-2 border-b border-warm-200">${category}</h2>
+            <h2 class="text-xs font-medium text-warm-500 uppercase tracking-widest mb-1 pb-2 border-b border-warm-200">${label}</h2>
+            ${hint ? `<p class="text-xs text-warm-500 italic mb-3 no-print">${hint}</p>` : '<div class="mb-3"></div>'}
             <div class="space-y-1">
               ${items.map(item => `
                 <div class="flex items-center gap-3 py-3 px-4 ${item.checked ? 'bg-warm-100 opacity-60' : 'bg-cream'} border border-warm-200 group">
@@ -11246,7 +11333,9 @@
                     onclick="toggleShoppingListItem('${item.id}')"
                     class="w-6 h-6 border-2 flex items-center justify-center flex-shrink-0 transition-colors ${item.checked ? 'border-green-500 bg-green-500 text-white' : 'border-warm-400 hover:border-accent'}"
                   >${item.checked ? '✓' : ''}</button>
-                  <span class="flex-1 font-medium ${item.checked ? 'line-through text-warm-500' : 'text-warm-900'}">${item.name}</span>
+                  ${ingredientLookup[item.id]
+                    ? `<button onclick="selectIngredientById('${item.id}', '${ingredientLookup[item.id].countryKey}')" class="flex-1 text-left font-medium hover:text-accent transition-colors ${item.checked ? 'line-through text-warm-500' : 'text-warm-900'}">${item.name}</button>`
+                    : `<span class="flex-1 font-medium ${item.checked ? 'line-through text-warm-500' : 'text-warm-900'}">${item.name}</span>`}
                   <button
                     onclick="removeFromShoppingList('${item.id}')"
                     class="w-7 h-7 flex items-center justify-center text-warm-400 hover:text-red-500 hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100"
@@ -11258,7 +11347,10 @@
           </section>
         `).join('')}
 
-        <div class="flex gap-3 pt-4 border-t border-warm-300">
+        <div class="flex gap-3 pt-4 border-t border-warm-300 no-print">
+          <button onclick="window.print()" class="px-4 py-2 text-sm font-medium border border-warm-400 text-warm-700 hover:bg-warm-200 transition-colors">
+            🖨 Print List
+          </button>
           ${checkedCount > 0 ? `
             <button onclick="clearCheckedItems()" class="px-4 py-2 text-sm font-medium border border-warm-400 text-warm-700 hover:bg-warm-200 transition-colors">
               Clear ${checkedCount} Checked
@@ -11292,8 +11384,70 @@
       updateShoppingBadge();
     }
 
-    // Initial render
-    render();
+    // --- Router ---
+    const HOME_TABS = ['start', 'region', 'flavor', 'pantry', 'technique'];
+
+    function updateDocumentTitle() {
+      let title = 'Asian Grocery Guide';
+      if (currentView === 'country' && ingredientDatabase[selectedCountry]) {
+        title = `${ingredientDatabase[selectedCountry].name} — ${title}`;
+      } else if (currentView === 'ingredient' && selectedIngredient) {
+        title = `${selectedIngredient.name} — ${title}`;
+      } else if (currentView === 'technique' && selectedTechnique) {
+        title = `${selectedTechnique.name} — ${title}`;
+      } else if (currentView === 'shopping-list') {
+        title = `Shopping List — ${title}`;
+      }
+      document.title = title;
+    }
+
+    function applyRoute() {
+      const parts = location.hash.replace(/^#\/?/, '').split('/').filter(Boolean).map(decodeURIComponent);
+
+      // Reset transient UI state on every navigation
+      searchQuery = '';
+      searchResults = [];
+      searchOpen = false;
+      selectedIngredient = null;
+      selectedTechnique = null;
+
+      if (parts[0] === 'c' && ingredientDatabase[parts[1]]) {
+        selectedCountry = parts[1];
+        currentView = 'country';
+      } else if (parts[0] === 'i' && ingredientIndex[`${parts[1]}/${parts[2]}`]) {
+        selectedIngredient = ingredientIndex[`${parts[1]}/${parts[2]}`];
+        selectedCountry = parts[1];
+        currentView = 'ingredient';
+      } else if (parts[0] === 't' && techniqueDatabase[parts[1]]) {
+        const technique = techniqueDatabase[parts[1]].techniques.find(t => t.id === parts[2]);
+        if (technique) {
+          selectedTechnique = technique;
+          selectedCountry = parts[1];
+          currentView = 'technique';
+        } else {
+          selectedCountry = parts[1];
+          currentView = 'country';
+        }
+      } else if (parts[0] === 'list') {
+        currentView = 'shopping-list';
+      } else if (parts[0] === 'tab' && HOME_TABS.includes(parts[1])) {
+        currentView = 'home';
+        homeTab = parts[1];
+        selectedCountry = null;
+      } else {
+        currentView = 'home';
+        homeTab = 'start';
+        selectedCountry = null;
+      }
+
+      updateDocumentTitle();
+      render();
+    }
+
+    window.addEventListener('hashchange', applyRoute);
+
+    // Initial render (honors any deep link in the URL)
+    applyRoute();
   </script>
 </body>
 </html>

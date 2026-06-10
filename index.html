@@ -11,9 +11,6 @@
   <!-- Compiled Tailwind (theme lives in tailwind.config.js; rebuild with:
        npx tailwindcss@3 -c tailwind.config.js -i tailwind.source.css -o tailwind.css --minify) -->
   <link rel="stylesheet" href="tailwind.css">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,340..600;1,9..144,340..600&display=swap">
   <style>
     * {
       -webkit-font-smoothing: antialiased;
@@ -38,13 +35,16 @@
     .sidebar-scroll::-webkit-scrollbar { display: none; }
     .sidebar-scroll { scrollbar-width: none; }
     .breadcrumb-sep::before { content: '›'; margin: 0 0.5rem; color: #8A7E63; }
-    /* Field guide typography: specimen names and page titles set in Fraunces */
-    h1, .font-display { font-family: 'Fraunces', Georgia, serif; font-weight: 500; }
+    /* Field guide typography: utilitarian — tight bold sans for titles,
+       monospace for catalog labels (specimen numbers, stamps) */
+    h1 { letter-spacing: -0.02em; }
+    .fg-label { font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; }
     .fg-stamp {
       display: inline-block;
-      transform: rotate(-4deg);
+      transform: rotate(-2deg);
       border: 1.5px solid #C75B39;
       color: #C75B39;
+      font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
       font-size: 0.65rem;
       letter-spacing: 0.12em;
       text-transform: uppercase;
@@ -10256,8 +10256,8 @@
           ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}">
           <div class="p-5 border-b border-warm-700">
             <button onclick="goHome(); closeSidebar();" class="text-left">
-              <h1 class="text-lg text-white tracking-tight">The Asian Grocery<br>Field Guide</h1>
-              <p class="text-xs text-warm-400 mt-1 leading-relaxed italic">Every jar has a story. Learn to read the shelf.</p>
+              <h1 class="text-lg font-bold text-white tracking-tight">The Asian Grocery<br>Field Guide</h1>
+              <p class="text-xs text-warm-400 mt-1 leading-relaxed">Every jar has a story. Learn to read the shelf.</p>
             </button>
           </div>
           <nav class="flex-1 overflow-y-auto sidebar-scroll py-3">
@@ -10713,7 +10713,7 @@
           <!-- Hero -->
           <div class="mb-12 pb-10 border-b border-dashed border-warm-400">
             <div class="flex items-center gap-2 mb-3">
-              <span class="text-warm-500 text-xs uppercase tracking-[0.2em] font-medium">Plate No. ${String(dish.no || 0).padStart(2, '0')} · ${country.flag} ${country.name} · <span class="capitalize">${dish.regionKey.replace(/_/g, ' ')}</span></span>
+              <span class="fg-label text-warm-500 text-xs uppercase tracking-[0.2em]">Plate No. ${String(dish.no || 0).padStart(2, '0')} · ${country.flag} ${country.name} · <span class="capitalize">${dish.regionKey.replace(/_/g, ' ')}</span></span>
             </div>
             <h1 class="text-4xl md:text-5xl font-bold text-warm-900 tracking-tight mb-2">${dish.name}</h1>
             ${dish.native ? `<div class="text-2xl text-warm-600 font-medium mb-3">${dish.native}</div>` : ''}
@@ -11030,7 +11030,7 @@
             ${renderImage(ingredient.image, 'large', ingredientCategory)}
             <div>
               <div class="flex items-center gap-3 mb-3 flex-wrap">
-                <span class="text-warm-500 text-xs uppercase tracking-[0.2em] font-medium">Specimen No. ${String(ingredient.no || 0).padStart(3, '0')} · ${country.flag} ${country.name}</span>
+                <span class="fg-label text-warm-500 text-xs uppercase tracking-[0.2em]">Specimen No. ${String(ingredient.no || 0).padStart(3, '0')} · ${country.flag} ${country.name}</span>
                 ${favorites.has(ingredient.id) ? '<span class="fg-stamp">In my pantry</span>' : ''}
               </div>
               <div class="flex items-center gap-3 mb-2">
@@ -11086,10 +11086,10 @@
               <!-- Field Note (pro tip) -->
               <section class="bg-warm-50 border border-dashed border-accent p-6 md:p-8">
                 <div class="flex items-start gap-4">
-                  <span class="text-accent text-2xl font-display font-bold">✳</span>
+                  <span class="text-accent text-2xl font-bold">✳</span>
                   <div>
-                    <h2 class="text-sm font-medium text-accent uppercase tracking-widest mb-2">Field Note</h2>
-                    <p class="leading-relaxed text-lg text-warm-800 font-display italic">${ingredient.proTip}</p>
+                    <h2 class="fg-label text-sm text-accent uppercase tracking-widest mb-2">Field Note</h2>
+                    <p class="leading-relaxed text-lg text-warm-800">${ingredient.proTip}</p>
                   </div>
                 </div>
               </section>

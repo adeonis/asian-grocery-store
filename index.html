@@ -3,14 +3,17 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Asian Grocery Guide — Shop Your Asian Grocery Store with Confidence</title>
-  <meta name="description" content="A friendly field guide to the Asian grocery store: hundreds of ingredients from 9 cuisines explained — what they are, how to use them, what to buy, and easy first recipes.">
-  <meta property="og:title" content="Asian Grocery Guide">
-  <meta property="og:description" content="Demystifying the Asian grocery store — ingredients from 9 cuisines explained, with starter pantries, recipes, and techniques.">
+  <title>The Asian Grocery Field Guide — Learn to Read the Shelf</title>
+  <meta name="description" content="A field guide to the Asian grocery store: hundreds of ingredients from 9 cuisines cataloged like specimens — what they are, how to use them, what to buy, and easy first recipes.">
+  <meta property="og:title" content="The Asian Grocery Field Guide">
+  <meta property="og:description" content="Every jar has a story. Learn to read the shelf — ingredients from 9 cuisines explained, with starter pantries, dish decoders, and techniques.">
   <meta property="og:type" content="website">
   <!-- Compiled Tailwind (theme lives in tailwind.config.js; rebuild with:
        npx tailwindcss@3 -c tailwind.config.js -i tailwind.source.css -o tailwind.css --minify) -->
   <link rel="stylesheet" href="tailwind.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,340..600;1,9..144,340..600&display=swap">
   <style>
     * {
       -webkit-font-smoothing: antialiased;
@@ -34,7 +37,21 @@
     .sidebar-backdrop { transition: opacity 0.3s ease; }
     .sidebar-scroll::-webkit-scrollbar { display: none; }
     .sidebar-scroll { scrollbar-width: none; }
-    .breadcrumb-sep::before { content: '›'; margin: 0 0.5rem; color: #A69888; }
+    .breadcrumb-sep::before { content: '›'; margin: 0 0.5rem; color: #8A7E63; }
+    /* Field guide typography: specimen names and page titles set in Fraunces */
+    h1, .font-display { font-family: 'Fraunces', Georgia, serif; font-weight: 500; }
+    .fg-stamp {
+      display: inline-block;
+      transform: rotate(-4deg);
+      border: 1.5px solid #C75B39;
+      color: #C75B39;
+      font-size: 0.65rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      padding: 0.2rem 0.6rem;
+      border-radius: 3px;
+    }
+    .fg-rule { border-bottom: 1px dashed #B8AD93; }
     @media print {
       header, #sidebar, #sidebar-backdrop, .no-print { display: none !important; }
       body { background: white !important; }
@@ -9748,7 +9765,7 @@
 
     const starterGuide = {
       intro: {
-        headline: "Welcome to Asian Cooking",
+        headline: "Every jar has a story. Learn to read the shelf.",
         subhead: "You don\u2019t need to be an expert. You just need a few ingredients and a willingness to try.",
         encouragement: "Everything on this page can be made in under 30 minutes with ingredients from any well-stocked grocery store. No special skills required\u2014just follow the steps and taste as you go."
       },
@@ -9930,7 +9947,7 @@
     Object.entries(ingredientDatabase).forEach(([countryKey, country]) => {
       Object.entries(country.categories).forEach(([categoryName, ingredients]) => {
         ingredients.forEach(ingredient => {
-          const entry = { ...ingredient, countryKey, category: categoryName };
+          const entry = { ...ingredient, countryKey, category: categoryName, no: allIngredientEntries.length + 1 };
           if (!ingredientLookup[ingredient.id]) ingredientLookup[ingredient.id] = entry;
           ingredientIndex[`${countryKey}/${ingredient.id}`] = entry;
           if (!ingredientsByName[ingredient.name.toLowerCase()]) ingredientsByName[ingredient.name.toLowerCase()] = entry;
@@ -9960,7 +9977,7 @@
     Object.entries(regionalDishes).forEach(([countryKey, regions]) => {
       Object.entries(regions).forEach(([regionKey, dishes]) => {
         dishes.forEach(dish => {
-          const entry = { ...dish, id: slugify(dish.name), countryKey, regionKey };
+          const entry = { ...dish, id: slugify(dish.name), countryKey, regionKey, no: allDishEntries.length + 1 };
           dishIndex[`${countryKey}/${entry.id}`] = entry;
           allDishEntries.push(entry);
         });
@@ -9987,7 +10004,7 @@
 
     function getPlaceholderSvg(category, sizeClass) {
       const svg = categoryPlaceholders[category] || categoryPlaceholders['default'];
-      return `<div class="${sizeClass} flex-shrink-0 bg-warm-200 flex items-center justify-center text-warm-400 p-2">${svg}</div>`;
+      return `<div class="${sizeClass} flex-shrink-0 bg-warm-100 border border-warm-300 flex items-center justify-center text-moss/60 p-2">${svg}</div>`;
     }
 
     // Helper function to render image - handles URL, emoji, and placeholder fallback
@@ -10239,8 +10256,8 @@
           ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}">
           <div class="p-5 border-b border-warm-700">
             <button onclick="goHome(); closeSidebar();" class="text-left">
-              <h1 class="text-lg font-bold text-white tracking-tight">Asian Grocery Guide</h1>
-              <p class="text-xs text-warm-400 mt-1 leading-relaxed">A reference for navigating your local Asian grocery store with confidence.</p>
+              <h1 class="text-lg text-white tracking-tight">The Asian Grocery<br>Field Guide</h1>
+              <p class="text-xs text-warm-400 mt-1 leading-relaxed italic">Every jar has a story. Learn to read the shelf.</p>
             </button>
           </div>
           <nav class="flex-1 overflow-y-auto sidebar-scroll py-3">
@@ -10279,7 +10296,7 @@
 
     function renderBreadcrumb() {
       if (currentView === 'home') {
-        return '<span class="font-semibold text-warm-900 text-sm md:text-base">Asian Grocery Guide</span>';
+        return '<span class="font-display font-semibold text-warm-900 text-sm md:text-base">The Asian Grocery Field Guide</span>';
       }
       if (currentView === 'shopping-list') {
         return `<div class="flex items-center text-sm text-warm-600">
@@ -10459,7 +10476,7 @@
       return `
         <!-- Welcome -->
         <div class="mb-12">
-          <h2 class="text-3xl md:text-4xl font-bold text-warm-900 mb-4">${guide.intro.headline}</h2>
+          <h2 class="font-display text-3xl md:text-4xl font-bold text-warm-900 mb-4">${guide.intro.headline}</h2>
           <p class="text-xl text-warm-600 leading-relaxed max-w-3xl">${guide.intro.subhead}</p>
           <p class="text-warm-500 mt-3 max-w-3xl leading-relaxed">${guide.intro.encouragement}</p>
         </div>
@@ -10569,7 +10586,7 @@
 
         <!-- Ready for More CTA -->
         <section class="text-center py-12 border-t border-warm-300">
-          <h3 class="text-2xl font-bold text-warm-900 mb-3">Ready to explore more?</h3>
+          <h3 class="font-display text-2xl font-bold text-warm-900 mb-3">Ready to explore more?</h3>
           <p class="text-warm-600 mb-6 max-w-xl mx-auto">You've got the basics. Now dive into 9 cuisines, hundreds of ingredients, regional dishes, and cooking techniques.</p>
           <button onclick="switchHomeTab('region')" class="inline-flex items-center gap-2 bg-accent text-white px-8 py-3 font-medium hover:bg-warm-900 transition-colors">
             <span>Browse All Cuisines</span>
@@ -10608,7 +10625,7 @@
             <span class="text-warm-300">·</span>
             <span class="capitalize">${dish.regionKey.replace(/_/g, ' ')}</span>
           </div>
-          <div class="font-semibold text-warm-900 text-lg group-hover:text-accent transition-colors">${dish.name}</div>
+          <div class="font-display font-semibold text-warm-900 text-lg group-hover:text-accent transition-colors">${dish.name}</div>
           <div class="text-sm text-warm-500">${dish.native || ''}</div>
           <div class="text-sm text-warm-600 mt-1">${dish.desc}</div>
           <div class="text-xs text-warm-500 mt-3 flex items-center gap-2 flex-wrap">
@@ -10666,7 +10683,7 @@
     function renderTabDishes() {
       return `
         <div class="mb-10">
-          <h2 class="text-3xl md:text-4xl font-bold text-warm-900 mb-4">Ate it at a restaurant? Make it at home.</h2>
+          <h2 class="font-display text-3xl md:text-4xl font-bold text-warm-900 mb-4">Ate it at a restaurant? Make it at home.</h2>
           <p class="text-xl text-warm-600 leading-relaxed max-w-3xl">Pick the dish you already love and we'll decode exactly what to buy at the Asian grocery store — every ingredient links to a guide that tells you what it looks like, what brand to grab, and how to use the rest of the jar.</p>
         </div>
         <div class="mb-8 flex flex-col sm:flex-row gap-3 sm:items-center">
@@ -10694,10 +10711,9 @@
       return `
         <main class="max-w-5xl mx-auto px-6 md:px-12 py-8">
           <!-- Hero -->
-          <div class="mb-12 pb-10 border-b border-warm-300">
+          <div class="mb-12 pb-10 border-b border-dashed border-warm-400">
             <div class="flex items-center gap-2 mb-3">
-              <span class="text-2xl">${country.flag}</span>
-              <span class="text-warm-500 text-sm uppercase tracking-wide font-medium">${country.name} · <span class="capitalize">${dish.regionKey.replace(/_/g, ' ')}</span></span>
+              <span class="text-warm-500 text-xs uppercase tracking-[0.2em] font-medium">Plate No. ${String(dish.no || 0).padStart(2, '0')} · ${country.flag} ${country.name} · <span class="capitalize">${dish.regionKey.replace(/_/g, ' ')}</span></span>
             </div>
             <h1 class="text-4xl md:text-5xl font-bold text-warm-900 tracking-tight mb-2">${dish.name}</h1>
             ${dish.native ? `<div class="text-2xl text-warm-600 font-medium mb-3">${dish.native}</div>` : ''}
@@ -10886,7 +10902,7 @@
       return `
         <main class="max-w-7xl mx-auto px-6 md:px-12 py-8">
           <!-- Country Title -->
-          <div class="flex items-center gap-5 mb-8 pb-8 border-b border-warm-300">
+          <div class="flex items-center gap-5 mb-8 pb-8 border-b border-dashed border-warm-400">
             <span class="text-5xl md:text-6xl">${country.flag}</span>
             <div>
               <h1 class="text-3xl md:text-5xl font-bold text-warm-900 tracking-tight">${country.name}</h1>
@@ -10981,7 +10997,7 @@
                     >
                       ${renderImage(ingredient.image, 'medium', categoryName)}
                       <div class="flex-1 min-w-0">
-                        <h3 class="font-semibold text-warm-900 group-hover:text-accent transition-colors">${ingredient.name}</h3>
+                        <h3 class="font-display font-semibold text-warm-900 group-hover:text-accent transition-colors">${ingredient.name}</h3>
                         ${ingredient.native ? `<div class="text-sm text-warm-500 font-medium">${ingredient.native}</div>` : ''}
                         <p class="text-sm text-warm-600 mt-2 line-clamp-2 leading-relaxed">${ingredient.quickDesc}</p>
                       </div>
@@ -11010,12 +11026,12 @@
       return `
         <main class="max-w-5xl mx-auto px-6 md:px-12 py-8">
           <!-- Hero Section -->
-          <div class="grid md:grid-cols-[auto,1fr] gap-8 md:gap-12 mb-16 pb-12 border-b border-warm-300">
+          <div class="grid md:grid-cols-[auto,1fr] gap-8 md:gap-12 mb-16 pb-12 border-b border-dashed border-warm-400">
             ${renderImage(ingredient.image, 'large', ingredientCategory)}
             <div>
-              <div class="flex items-center gap-2 mb-3">
-                <span class="text-2xl">${country.flag}</span>
-                <span class="text-warm-500 text-sm uppercase tracking-wide font-medium">${country.name}</span>
+              <div class="flex items-center gap-3 mb-3 flex-wrap">
+                <span class="text-warm-500 text-xs uppercase tracking-[0.2em] font-medium">Specimen No. ${String(ingredient.no || 0).padStart(3, '0')} · ${country.flag} ${country.name}</span>
+                ${favorites.has(ingredient.id) ? '<span class="fg-stamp">In my pantry</span>' : ''}
               </div>
               <div class="flex items-center gap-3 mb-2">
                 <h1 class="text-4xl md:text-5xl font-bold text-warm-900 tracking-tight">${ingredient.name}</h1>
@@ -11067,13 +11083,13 @@
                 </ul>
               </section>
 
-              <!-- Pro Tip -->
-              <section class="bg-warm-900 text-warm-50 p-6 md:p-8">
+              <!-- Field Note (pro tip) -->
+              <section class="bg-warm-50 border border-dashed border-accent p-6 md:p-8">
                 <div class="flex items-start gap-4">
-                  <span class="text-accent text-2xl font-bold">!</span>
+                  <span class="text-accent text-2xl font-display font-bold">✳</span>
                   <div>
-                    <h2 class="text-sm font-medium text-warm-400 uppercase tracking-widest mb-2">Pro Tip</h2>
-                    <p class="leading-relaxed text-lg">${ingredient.proTip}</p>
+                    <h2 class="text-sm font-medium text-accent uppercase tracking-widest mb-2">Field Note</h2>
+                    <p class="leading-relaxed text-lg text-warm-800 font-display italic">${ingredient.proTip}</p>
                   </div>
                 </div>
               </section>
@@ -11629,7 +11645,7 @@
     const HOME_TABS = ['start', 'dishes', 'region', 'flavor', 'pantry', 'technique'];
 
     function updateDocumentTitle() {
-      let title = 'Asian Grocery Guide';
+      let title = 'The Asian Grocery Field Guide';
       if (currentView === 'country' && ingredientDatabase[selectedCountry]) {
         title = `${ingredientDatabase[selectedCountry].name} — ${title}`;
       } else if (currentView === 'ingredient' && selectedIngredient) {

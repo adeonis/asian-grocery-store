@@ -9274,6 +9274,8 @@
     let selectedCountry = null;
     let selectedIngredient = null;
     let selectedTechnique = null;
+    let selectedDish = null;
+    let dishFilter = '';
     let searchQuery = '';
     let searchResults = [];
     let homeTab = 'start';
@@ -9974,6 +9976,22 @@
       'default': `<svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="24" cy="24" r="14" fill="currentColor" opacity="0.25"/><circle cx="24" cy="24" r="8" fill="currentColor" opacity="0.1"/><circle cx="24" cy="24" r="3" fill="currentColor" opacity="0.15"/></svg>`
     };
 
+    // --- Dish index: flatten regionalDishes into routable, searchable entries ---
+    function slugify(name) {
+      return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+    }
+    const dishIndex = {};         // "country/slug" -> dish entry
+    const allDishEntries = [];
+    Object.entries(regionalDishes).forEach(([countryKey, regions]) => {
+      Object.entries(regions).forEach(([regionKey, dishes]) => {
+        dishes.forEach(dish => {
+          const entry = { ...dish, id: slugify(dish.name), countryKey, regionKey };
+          dishIndex[`${countryKey}/${entry.id}`] = entry;
+          allDishEntries.push(entry);
+        });
+      });
+    });
+
     // Find an ingredient entry by display name (used to turn "Pairs With" text into links).
     // Prefers a match from the same country, then an exact name match anywhere, then a
     // close containment match (guarding against short generic words).
@@ -9982,7 +10000,10 @@
       const sameCountryExact = allIngredientEntries.find(e => e.countryKey === preferCountry && e.name.toLowerCase() === q);
       if (sameCountryExact) return sameCountryExact;
       if (ingredientsByName[q]) return ingredientsByName[q];
-      if (q.length < 5) return null;
+      // Generic fresh items must never fuzzy-match a pantry product
+      // (e.g. "Shrimp" must not match "Shrimp Paste") — exact matches above still win.
+      const NO_FUZZY = ['shrimp', 'chicken', 'pork', 'beef', 'lamb', 'duck', 'egg', 'eggs', 'fish', 'squid', 'crab', 'flour', 'sugar', 'salt', 'butter', 'onion', 'rice', 'noodles', 'cucumber', 'carrots', 'mushrooms', 'spinach', 'cabbage'];
+      if (q.length < 5 || NO_FUZZY.includes(q)) return null;
       const sameCountryClose = allIngredientEntries.find(e => e.countryKey === preferCountry &&
         (e.name.toLowerCase().includes(q) || q.includes(e.name.toLowerCase())));
       if (sameCountryClose) return sameCountryClose;
@@ -10043,6 +10064,18 @@
           });
         });
       });
+      // Dishes are searchable too — a dish name match should beat weak ingredient matches
+      allDishEntries.forEach(dish => {
+        const name = dish.name.toLowerCase();
+        let score = 0;
+        if (name === q) score = 95;
+        else if (name.startsWith(q)) score = 75;
+        else if (name.includes(q)) score = 55;
+        else if (`${dish.native || ''} ${dish.desc}`.toLowerCase().includes(q)) score = 35;
+        if (score > 0) {
+          scored.push({ ...dish, countryName: ingredientDatabase[dish.countryKey].name, _type: 'dish', _score: score });
+        }
+      });
       scored.sort((a, b) => b._score - a._score);
       searchResults = scored.slice(0, 30);
       updateSearchResults();
@@ -10060,7 +10093,19 @@
               ${searchResults.length} Results
             </div>
             <div class="max-h-80 overflow-y-auto divide-y divide-warm-200">
-              ${searchResults.map((result) => `
+              ${searchResults.map((result) => result._type === 'dish' ? `
+                <button
+                  onclick="selectDish('${result.id}', '${result.countryKey}')"
+                  class="w-full px-4 py-3 text-left hover:bg-warm-200 transition-colors flex items-center gap-4"
+                >
+                  <div class="w-12 h-12 flex-shrink-0 bg-accent/10 text-accent flex items-center justify-center text-xl">🍽</div>
+                  <div class="flex-1 min-w-0">
+                    <div class="font-medium text-warm-900">${result.name}</div>
+                    <div class="text-sm text-warm-600">${result.countryName} · Dish — see what to buy</div>
+                  </div>
+                  <span class="text-accent font-medium">→</span>
+                </button>
+              ` : `
                 <button
                   onclick="selectIngredientById('${result.id}', '${result.countryKey}')"
                   class="w-full px-4 py-3 text-left hover:bg-warm-200 transition-colors flex items-center gap-4"
@@ -10114,6 +10159,37 @@
 
     function selectTechnique(techniqueId, countryKey) {
       navigate('/t/' + countryKey + '/' + techniqueId);
+    }
+
+    function selectDish(dishId, countryKey) {
+      navigate('/d/' + countryKey + '/' + dishId);
+    }
+
+    // Add every dish ingredient that maps to a known store ingredient; the rest
+    // (fresh proteins etc.) go on the list under "Other".
+    function addDishToShoppingList(dishId, countryKey) {
+      const dish = dishIndex[`${countryKey}/${dishId}`];
+      if (!dish) return;
+      dish.ingredients.forEach(name => {
+        const match = findIngredientByName(name, countryKey);
+        if (match) {
+          if (!shoppingList.some(i => i.id === match.id)) {
+            shoppingList.push({ id: match.id, name: match.name, category: match.category, checked: false, addedAt: Date.now() });
+          }
+        } else {
+          const ghostId = 'misc-' + slugify(name);
+          if (!shoppingList.some(i => i.id === ghostId)) {
+            shoppingList.push({ id: ghostId, name, category: 'Other', checked: false, addedAt: Date.now() });
+          }
+        }
+      });
+      saveShoppingList();
+      const btn = document.getElementById('add-dish-btn');
+      if (btn) {
+        btn.innerHTML = '✓ Ingredients added to list';
+        btn.classList.remove('bg-accent', 'text-white', 'hover:bg-warm-800');
+        btn.classList.add('bg-green-100', 'text-green-800', 'cursor-default');
+      }
     }
 
     function goToRandomIngredient() {
@@ -10250,6 +10326,16 @@
           <span class="font-medium text-warm-900 truncate">${selectedTechnique.name}</span>
         </div>`;
       }
+      if (currentView === 'dish') {
+        const country = ingredientDatabase[selectedCountry];
+        return `<div class="flex items-center text-sm text-warm-600 truncate">
+          <button onclick="goHome()" class="hover:text-accent transition-colors flex-shrink-0">Home</button>
+          <span class="breadcrumb-sep flex-shrink-0"></span>
+          <button onclick="selectCountry('${selectedCountry}')" class="hover:text-accent transition-colors flex-shrink-0">${country.flag} ${country.name}</button>
+          <span class="breadcrumb-sep flex-shrink-0"></span>
+          <span class="font-medium text-warm-900 truncate">${selectedDish.name}</span>
+        </div>`;
+      }
       return '';
     }
 
@@ -10290,7 +10376,7 @@
               <div class="relative">
                 <input id="search-input" type="text" placeholder="Search ingredients... (try 'gochujang' or 'umami')"
                   value="${searchQuery}" oninput="handleSearch(this.value)"
-                  onkeydown="if(event.key==='Escape'){toggleSearch()} else if(event.key==='Enter'&&searchResults.length>0){selectIngredientById(searchResults[0].id, searchResults[0].countryKey)}"
+                  onkeydown="if(event.key==='Escape'){toggleSearch()} else if(event.key==='Enter'&&searchResults.length>0){const r=searchResults[0]; r._type==='dish'?selectDish(r.id,r.countryKey):selectIngredientById(r.id,r.countryKey)}"
                   class="w-full px-4 py-2.5 text-sm border-2 border-warm-400 bg-transparent focus:border-accent focus:outline-none placeholder-warm-500"
                 />
                 <div id="search-results" class="absolute left-0 right-0 top-full mt-1 z-50"></div>
@@ -10306,6 +10392,7 @@
       if (currentView === 'country') return renderCountry();
       if (currentView === 'ingredient') return renderIngredient();
       if (currentView === 'technique') return renderTechnique();
+      if (currentView === 'dish') return renderDish();
       if (currentView === 'shopping-list') return renderShoppingList();
       return renderHome();
     }
@@ -10319,6 +10406,7 @@
             <nav class="flex gap-0 overflow-x-auto -mb-px" style="scrollbar-width: none;">
               ${[
                 { id: 'start', label: 'Start Here' },
+                { id: 'dishes', label: 'Find a Dish' },
                 { id: 'region', label: 'By Region' },
                 { id: 'flavor', label: 'By Flavor' },
                 { id: 'pantry', label: 'By Pantry' },
@@ -10367,6 +10455,7 @@
     function renderHomeTabContent() {
       switch (homeTab) {
         case 'start': return renderTabStartHere();
+        case 'dishes': return renderTabDishes();
         case 'region': return renderTabRegion();
         case 'flavor': return renderTabFlavor();
         case 'pantry': return renderTabPantry();
@@ -10497,6 +10586,158 @@
             <span>→</span>
           </button>
         </section>
+      `;
+    }
+
+    function dishCard(dish) {
+      const country = ingredientDatabase[dish.countryKey];
+      const matched = dish.ingredients.filter(n => findIngredientByName(n, dish.countryKey)).length;
+      return `
+        <button onclick="selectDish('${dish.id}', '${dish.countryKey}')"
+          class="bg-cream border border-warm-300 p-5 text-left hover:border-accent hover:bg-warm-100 transition-colors group">
+          <div class="flex items-center gap-2 text-xs text-warm-500 mb-2">
+            <span class="text-base">${country.flag}</span>
+            <span>${country.name}</span>
+            <span class="text-warm-300">·</span>
+            <span class="capitalize">${dish.regionKey.replace(/_/g, ' ')}</span>
+          </div>
+          <div class="font-semibold text-warm-900 text-lg group-hover:text-accent transition-colors">${dish.name}</div>
+          <div class="text-sm text-warm-500">${dish.native || ''}</div>
+          <div class="text-sm text-warm-600 mt-1">${dish.desc}</div>
+          <div class="text-xs text-warm-500 mt-3">${dish.ingredients.length} ingredients · ${matched} in this guide</div>
+        </button>
+      `;
+    }
+
+    function renderDishGrid() {
+      const q = dishFilter.toLowerCase().trim();
+      if (q) {
+        const matches = allDishEntries.filter(d =>
+          `${d.name} ${d.native || ''} ${d.desc} ${d.ingredients.join(' ')}`.toLowerCase().includes(q));
+        if (matches.length === 0) {
+          return `<p class="text-warm-500 py-8">No dishes match "${dishFilter}". Try a broader word — "noodle", "curry", "pork"...</p>`;
+        }
+        return `<div class="grid md:grid-cols-2 lg:grid-cols-3 gap-4">${matches.map(dishCard).join('')}</div>`;
+      }
+      return Object.keys(regionalDishes).map(countryKey => {
+        const country = ingredientDatabase[countryKey];
+        const dishes = allDishEntries.filter(d => d.countryKey === countryKey);
+        return `
+          <div class="mb-10">
+            <h3 class="font-semibold text-warm-900 text-xl mb-4 flex items-center gap-2">
+              <span class="text-2xl">${country.flag}</span> ${country.name}
+              <span class="text-sm font-normal text-warm-500">${dishes.length} dishes</span>
+            </h3>
+            <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-4">${dishes.map(dishCard).join('')}</div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function filterDishes(q) {
+      dishFilter = q;
+      const grid = document.getElementById('dish-grid');
+      if (grid) grid.innerHTML = renderDishGrid();
+    }
+
+    function renderTabDishes() {
+      return `
+        <div class="mb-10">
+          <h2 class="text-3xl md:text-4xl font-bold text-warm-900 mb-4">Ate it at a restaurant? Make it at home.</h2>
+          <p class="text-xl text-warm-600 leading-relaxed max-w-3xl">Pick the dish you already love and we'll decode exactly what to buy at the Asian grocery store — every ingredient links to a guide that tells you what it looks like, what brand to grab, and how to use the rest of the jar.</p>
+        </div>
+        <div class="mb-8 max-w-xl">
+          <input type="text" placeholder="Search ${allDishEntries.length} dishes... (try 'pad thai', 'curry', 'dumpling')"
+            value="${dishFilter}" oninput="filterDishes(this.value)"
+            class="w-full px-4 py-3 border-2 border-warm-400 bg-transparent focus:border-accent focus:outline-none placeholder-warm-500">
+        </div>
+        <div id="dish-grid">${renderDishGrid()}</div>
+      `;
+    }
+
+    function renderDish() {
+      const dish = selectedDish;
+      const country = ingredientDatabase[selectedCountry];
+      const resolved = dish.ingredients.map(name => ({ name, match: findIngredientByName(name, selectedCountry) }));
+      const fromStore = resolved.filter(r => r.match);
+      const fromAnywhere = resolved.filter(r => !r.match);
+      const related = allDishEntries.filter(d => d.countryKey === selectedCountry && d.id !== dish.id).slice(0, 3);
+
+      return `
+        <main class="max-w-5xl mx-auto px-6 md:px-12 py-8">
+          <!-- Hero -->
+          <div class="mb-12 pb-10 border-b border-warm-300">
+            <div class="flex items-center gap-2 mb-3">
+              <span class="text-2xl">${country.flag}</span>
+              <span class="text-warm-500 text-sm uppercase tracking-wide font-medium">${country.name} · <span class="capitalize">${dish.regionKey.replace(/_/g, ' ')}</span></span>
+            </div>
+            <h1 class="text-4xl md:text-5xl font-bold text-warm-900 tracking-tight mb-2">${dish.name}</h1>
+            ${dish.native ? `<div class="text-2xl text-warm-600 font-medium mb-3">${dish.native}</div>` : ''}
+            <p class="text-xl text-warm-700 leading-relaxed mb-6">${dish.desc}</p>
+            <button id="add-dish-btn" onclick="addDishToShoppingList('${dish.id}', '${selectedCountry}')"
+              class="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-medium bg-accent text-white hover:bg-warm-800 transition-colors">
+              🛒 Add all ${dish.ingredients.length} ingredients to shopping list
+            </button>
+          </div>
+
+          <!-- What to buy -->
+          <section class="mb-14">
+            <h2 class="text-sm font-medium text-warm-600 uppercase tracking-widest mb-2">What to Buy at the Asian Grocery</h2>
+            <p class="text-warm-600 mb-6">Tap any ingredient to learn what it looks like on the shelf, which brand to buy, and what else it can do.</p>
+            <div class="grid sm:grid-cols-2 gap-px bg-warm-300 mb-6">
+              ${fromStore.map(({ name, match }) => `
+                <button onclick="selectIngredientById('${match.id}', '${match.countryKey}')"
+                  class="bg-cream p-4 text-left hover:bg-warm-100 transition-colors flex items-start gap-3 group">
+                  ${renderImage(match.image, 'small', match.category)}
+                  <div class="min-w-0 flex-1">
+                    <div class="font-medium text-warm-900 group-hover:text-accent transition-colors">${name}</div>
+                    <div class="text-xs text-warm-600 mt-0.5 line-clamp-2">${match.quickDesc}</div>
+                  </div>
+                  <span class="text-warm-400 group-hover:text-accent mt-1">→</span>
+                </button>
+              `).join('')}
+            </div>
+            ${fromAnywhere.length > 0 ? `
+              <div class="bg-warm-100 border border-warm-200 p-4">
+                <div class="text-xs font-medium text-warm-500 uppercase tracking-wide mb-2">Also Needed — Any Grocery Store Works</div>
+                <div class="flex flex-wrap gap-2">
+                  ${fromAnywhere.map(({ name }) => `<span class="border border-warm-300 bg-cream text-warm-700 px-3 py-1 text-sm">${name}</span>`).join('')}
+                </div>
+              </div>
+            ` : ''}
+          </section>
+
+          <!-- Method -->
+          ${dish.steps ? `
+            <section class="mb-14">
+              <h2 class="text-sm font-medium text-warm-600 uppercase tracking-widest mb-6">Quick Method</h2>
+              <ol class="space-y-4 max-w-3xl">
+                ${dish.steps.map((step, i) => `
+                  <li class="flex items-start gap-4 text-warm-700">
+                    <span class="text-accent font-bold text-lg flex-shrink-0">${i + 1}</span>
+                    <span class="leading-relaxed text-lg">${step}</span>
+                  </li>
+                `).join('')}
+              </ol>
+              ${dish.source ? `
+                <a href="${dish.source}" target="_blank" rel="noopener" class="inline-flex items-center gap-2 mt-6 text-sm text-accent hover:underline">
+                  Full recipe: ${dish.sourceName || 'original source'} ↗
+                </a>
+              ` : ''}
+            </section>
+          ` : ''}
+
+          <!-- Related dishes -->
+          ${related.length > 0 ? `
+            <section class="pt-10 border-t border-warm-300">
+              <div class="flex items-center justify-between mb-6">
+                <h2 class="text-sm font-medium text-warm-600 uppercase tracking-widest">More ${country.name} Dishes</h2>
+                <button onclick="switchHomeTab('dishes')" class="text-sm text-accent hover:underline">All dishes →</button>
+              </div>
+              <div class="grid md:grid-cols-3 gap-4">${related.map(dishCard).join('')}</div>
+            </section>
+          ` : ''}
+        </main>
       `;
     }
 
@@ -10663,48 +10904,17 @@
                     ${regionId.replace(/_/g, ' ')} Region
                   </h3>
                   <div class="grid md:grid-cols-2 gap-6">
-                    ${dishes.map((dish, idx) => `
-                      <div class="border border-warm-300 bg-warm-50">
-                        <button
-                          onclick="this.nextElementSibling.classList.toggle('hidden'); this.querySelector('.expand-icon').classList.toggle('rotate-180')"
-                          class="w-full p-5 text-left flex items-start justify-between gap-4 hover:bg-warm-100 transition-colors"
-                        >
-                          <div>
-                            <div class="font-semibold text-warm-900 text-lg">${dish.name}</div>
-                            <div class="text-sm text-warm-500">${dish.native}</div>
-                            <div class="text-sm text-warm-600 mt-1">${dish.desc}</div>
-                          </div>
-                          <svg class="expand-icon w-5 h-5 text-warm-400 flex-shrink-0 mt-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-                          </svg>
-                        </button>
-                        <div class="hidden px-5 pb-5 border-t border-warm-200">
-                          ${dish.ingredients ? `
-                            <div class="mt-4 mb-3">
-                              <div class="text-xs font-medium text-warm-500 uppercase tracking-wide mb-2">Key Ingredients</div>
-                              <div class="flex flex-wrap gap-1">
-                                ${dish.ingredients.map(ing => `<span class="text-xs bg-warm-200 text-warm-700 px-2 py-1">${ing}</span>`).join('')}
-                              </div>
-                            </div>
-                          ` : ''}
-                          ${dish.steps ? `
-                            <div>
-                              <div class="text-xs font-medium text-warm-500 uppercase tracking-wide mb-2">Quick Method</div>
-                              <ol class="text-sm text-warm-700 space-y-1">
-                                ${dish.steps.map((step, i) => `<li class="flex gap-2"><span class="text-accent font-bold">${i+1}.</span> ${step}</li>`).join('')}
-                              </ol>
-                            </div>
-                          ` : ''}
-                          ${dish.source ? `
-                            <div class="mt-3 pt-3 border-t border-warm-200">
-                              <a href="${dish.source}" target="_blank" rel="noopener" class="text-xs text-accent hover:underline flex items-center gap-1">
-                                <span>Source: ${dish.sourceName || 'Original Recipe'}</span>
-                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
-                              </a>
-                            </div>
-                          ` : ''}
+                    ${dishes.map(dish => `
+                      <button onclick="selectDish('${slugify(dish.name)}', '${selectedCountry}')"
+                        class="border border-warm-300 bg-warm-50 p-5 text-left flex items-start justify-between gap-4 hover:bg-warm-100 hover:border-accent transition-colors group">
+                        <div>
+                          <div class="font-semibold text-warm-900 text-lg group-hover:text-accent transition-colors">${dish.name}</div>
+                          <div class="text-sm text-warm-500">${dish.native}</div>
+                          <div class="text-sm text-warm-600 mt-1">${dish.desc}</div>
+                          <div class="text-xs text-warm-500 mt-2">${dish.ingredients ? dish.ingredients.length + ' ingredients · shopping list ready' : ''}</div>
                         </div>
-                      </div>
+                        <span class="text-warm-400 group-hover:text-accent transition-colors mt-1">→</span>
+                      </button>
                     `).join('')}
                   </div>
                 </div>
@@ -11385,7 +11595,7 @@
     }
 
     // --- Router ---
-    const HOME_TABS = ['start', 'region', 'flavor', 'pantry', 'technique'];
+    const HOME_TABS = ['start', 'dishes', 'region', 'flavor', 'pantry', 'technique'];
 
     function updateDocumentTitle() {
       let title = 'Asian Grocery Guide';
@@ -11395,6 +11605,8 @@
         title = `${selectedIngredient.name} — ${title}`;
       } else if (currentView === 'technique' && selectedTechnique) {
         title = `${selectedTechnique.name} — ${title}`;
+      } else if (currentView === 'dish' && selectedDish) {
+        title = `${selectedDish.name} — ${title}`;
       } else if (currentView === 'shopping-list') {
         title = `Shopping List — ${title}`;
       }
@@ -11408,8 +11620,10 @@
       searchQuery = '';
       searchResults = [];
       searchOpen = false;
+      dishFilter = '';
       selectedIngredient = null;
       selectedTechnique = null;
+      selectedDish = null;
 
       if (parts[0] === 'c' && ingredientDatabase[parts[1]]) {
         selectedCountry = parts[1];
@@ -11428,6 +11642,10 @@
           selectedCountry = parts[1];
           currentView = 'country';
         }
+      } else if (parts[0] === 'd' && dishIndex[`${parts[1]}/${parts[2]}`]) {
+        selectedDish = dishIndex[`${parts[1]}/${parts[2]}`];
+        selectedCountry = parts[1];
+        currentView = 'dish';
       } else if (parts[0] === 'list') {
         currentView = 'shopping-list';
       } else if (parts[0] === 'tab' && HOME_TABS.includes(parts[1])) {

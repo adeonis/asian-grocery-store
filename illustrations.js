@@ -848,6 +848,7 @@ const ILLO_RULES = [
   [/mango pickle/i, 'jar', { color: IC.orange, cap: IC.red, dots: IC.yellow }],
   [/umeboshi/i, 'jar', { color: IC.salmon, cap: IC.white, dots: IC.red }],
   [/pickled garlic/i, 'jar', { color: IC.vinegar, cap: IC.red, dots: IC.cream }],
+  [/beni shoga/i, 'jar', { color: IC.red, cap: IC.white }],
   [/pickled ginger|gari/i, 'jar', { color: IC.pink, cap: IC.white }],
   [/pickled mustard|preserved radish/i, 'jar', { color: IC.mustard, cap: IC.red }],
   [/yuzu kosho/i, 'smallJar', { color: IC.paleGreen, cap: IC.yellow }],

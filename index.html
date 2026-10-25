@@ -2199,6 +2199,28 @@
               ]
             },
             {
+              id: "beni-shoga",
+              name: "Beni Shoga (Red Pickled Ginger)",
+              native: "紅生姜",
+              pronunciation: "beh-nee shoh-gah",
+              quickDesc: "Bright red ginger strips for ramen, gyudon and yakisoba",
+              whatIsIt: "Ginger cut into thin matchsticks and pickled in umezu, the salty red brine left over from making umeboshi. It's sharp, salty and sour rather than sweet, and the brine (or red coloring in cheaper brands) gives it its vivid color. It is not the same as gari, the sweet pink ginger served with sushi.",
+              howToUse: [
+                "Add a pinch to tonkotsu ramen like Hakata ramen",
+                "Top gyudon (beef rice bowls) and yakisoba",
+                "Mix into takoyaki and okonomiyaki batter",
+                "Fry in tempura batter for beni shoga tempura"
+              ],
+              pairsWith: ["Ramen noodles", "Pork", "Beef", "Rice", "Okonomiyaki"],
+              storage: "Refrigerate after opening. Keeps for months in its brine.",
+              substitutes: "Gari in a pinch, rinsed and patted dry, though it's sweeter. Or julienned fresh ginger quickly pickled in umeboshi vinegar.",
+              proTip: "Look for umezu (plum vinegar) on the label; it tastes cleaner than versions colored with dye. Usually sold in small bags or jars near the other pickles.",
+              youtube: [
+                { title: "How to Make Beni Shoga", url: "https://www.youtube.com/results?search_query=how+to+make+beni+shoga+red+pickled+ginger" },
+                { title: "Hakata Tonkotsu Ramen Toppings", url: "https://www.youtube.com/results?search_query=hakata+tonkotsu+ramen+toppings" }
+              ]
+            },
+            {
               id: "kinako",
               name: "Kinako (Roasted Soybean Powder)",
               native: "きな粉",
@@ -9104,7 +9126,7 @@
         ],
         kyushu: [
           { name: "Hakata Ramen", native: "博多ラーメン", desc: "Pork bone ramen",
-            ingredients: ["Pork bones", "Thin ramen noodles", "Chashu pork", "Soft-boiled egg", "Pickled ginger", "Sesame"],
+            ingredients: ["Pork bones", "Thin ramen noodles", "Chashu pork", "Soft-boiled egg", "Beni shoga (red pickled ginger)", "Sesame"],
             steps: ["Boil pork bones 12+ hours for milky tonkotsu broth", "Cook noodles firm (kata-men style)", "Top with chashu, egg, ginger, sesame, scallions"] }
         ],
         hokkaido: [
@@ -9178,7 +9200,7 @@
       vietnam: {
         northern: [
           { name: "Pho Bo", native: "Phở Bò", desc: "Beef noodle soup",
-            ingredients: ["Beef bones", "Rice noodles", "Beef slices", "Star anise", "Cinnamon", "Ginger", "Fish sauce", "Bean sprouts", "Herbs"],
+            ingredients: ["Beef bones", "Phở noodles", "Beef slices", "Star anise", "Cinnamon", "Ginger", "Fish sauce", "Bean sprouts", "Herbs"],
             steps: ["Char ginger and onion, simmer with bones and spices 6+ hours", "Season broth with fish sauce and rock sugar", "Pour boiling broth over noodles and raw beef slices, serve with herbs"] },
           { name: "Bun Cha", native: "Bún Chả", desc: "Grilled pork with noodles",
             ingredients: ["Pork belly", "Pork patties", "Rice vermicelli", "Fish sauce", "Sugar", "Garlic", "Herbs", "Pickled papaya"],
@@ -9630,19 +9652,93 @@
     // Find an ingredient entry by display name (used to turn "Pairs With" text into links).
     // Prefers a match from the same country, then an exact name match anywhere, then a
     // close containment match (guarding against short generic words).
+    // --- Matching a free-text ingredient name (from a dish or "Pairs With") to a guide entry ---
+    // Dish lists say "Cream" or "Peanuts"; the guide has "Coconut Cream" and
+    // "Roasted Peanuts". A link is only made when both name the same thing.
+    const INGREDIENT_ALIASES = {
+      'annatto oil': 'philippines/ph-annatto',
+      'thai chilies': 'thailand/thai-chilies',
+      'kashmiri chilies': 'india/kashmiri-mirch',
+      // Taiwan's only local soy entry is the thick paste; plain soy sauce is light soy
+      'taiwan:soy sauce': 'china/light-soy'
+    };
+    // Plain staples and catch-alls: only an exact name links them
+    const MATCH_EXACT_ONLY = ['shrimp', 'chicken', 'pork', 'beef', 'lamb', 'duck', 'egg', 'fish', 'squid', 'crab', 'flour', 'sugar', 'salt', 'butter', 'onion', 'rice', 'noodle', 'cucumber', 'carrot', 'mushroom', 'spinach', 'cabbage', 'herb', 'green', 'water', 'oyster', 'curry'];
+    // Generic words that name a different product in another cuisine's entry
+    // ("Cream" is not Thai coconut cream), so they never match across cuisines
+    const MATCH_LOCAL_ONLY = ['cream', 'milk', 'vinegar', 'peppercorn', 'bean', 'mango', 'potato', 'sweet potato', 'sesame', 'bread', 'lemon', 'coconut', 'mustard', 'eggplant', 'mint', 'pickle', 'dipping sauce'];
+    // Words that name the form an ingredient is sold in ("Cumin Seeds" is cumin);
+    // "oil" is deliberately absent: coconut oil is not coconut
+    const MATCH_FORM_WORDS = ['seed', 'powder', 'paste', 'leave', 'leaf', 'noodle', 'sauce', 'pearl', 'starch', 'radish', 'root', 'stalk', 'broth', 'stock'];
+    // A query can name its ingredient plus what's made from it ("Lime juice",
+    // "Garlic oil"); the reverse is not true ("Coconut" is not coconut oil)
+    const MATCH_QUERY_SUFFIXES = [...MATCH_FORM_WORDS, 'juice', 'oil'];
+
+    function matchWords(s) {
+      return s.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim().split(' ')
+        .map(w => w.replace(/ies$/, 'i').replace(/oes$/, 'o').replace(/(?<!s)s$/, '')).join(' ');
+    }
+
+    const entriesByCountry = {};
+    function countryEntries(countryKey) {
+      return entriesByCountry[countryKey] || (entriesByCountry[countryKey] = allIngredientEntries.filter(e => e.countryKey === countryKey));
+    }
+
+    // Every name an entry goes by: full name, name without the parenthetical,
+    // the parenthetical, and each "/" alternative
+    const entryFormsCache = new Map();
+    function entryForms(e) {
+      if (!entryFormsCache.has(e)) {
+        const base = e.name.replace(/\([^)]*\)/g, ' ');
+        const paren = (e.name.match(/\(([^)]*)\)/) || [])[1] || '';
+        entryFormsCache.set(e, [e.name, base, paren, ...base.split('/')].map(matchWords).filter(Boolean));
+      }
+      return entryFormsCache.get(e);
+    }
+
+    // An entry is the same kind of thing when the query is its head noun
+    // ("Roasted Peanuts" for "Peanuts") or it is the query plus a form word
+    // ("Tamarind Paste" for "Tamarind"); the first such entry wins, since each
+    // cuisine lists its everyday version first. Failing that, the longest entry
+    // name that is the query's own head noun ("Urad Dal" in "Black urad dal")
+    // or the query minus a suffix ("Kinako" in "Kinako powder").
+    function bestSameKind(list, qw) {
+      const tail = ' ' + qw;
+      const withForm = new Set(MATCH_FORM_WORDS.map(w => qw + ' ' + w));
+      const kind = list.find(e => entryForms(e).some(f => f.endsWith(tail) || withForm.has(f)));
+      if (kind) return kind;
+      const stems = new Set(MATCH_QUERY_SUFFIXES.filter(w => qw.endsWith(' ' + w)).map(w => qw.slice(0, -w.length - 1)));
+      const within = f => qw.endsWith(' ' + f) || stems.has(f);
+      let pick = null, len = 0;
+      list.forEach(e => entryForms(e).forEach(f => { if (within(f) && f.length > len) { pick = e; len = f.length; } }));
+      return pick;
+    }
+
+    const ingredientMatchCache = new Map();
     function findIngredientByName(name, preferCountry) {
+      const key = `${preferCountry}|${name}`;
+      if (!ingredientMatchCache.has(key)) ingredientMatchCache.set(key, matchIngredient(name, preferCountry));
+      return ingredientMatchCache.get(key);
+    }
+
+    function matchIngredient(name, preferCountry) {
+      if (name.includes('/')) {
+        for (const part of name.split('/')) { const m = matchIngredient(part, preferCountry); if (m) return m; }
+        return null;
+      }
       const q = name.toLowerCase().trim();
-      const sameCountryExact = allIngredientEntries.find(e => e.countryKey === preferCountry && e.name.toLowerCase() === q);
-      if (sameCountryExact) return sameCountryExact;
-      if (ingredientsByName[q]) return ingredientsByName[q];
-      // Generic fresh items must never fuzzy-match a pantry product
-      // (e.g. "Shrimp" must not match "Shrimp Paste") — exact matches above still win.
-      const NO_FUZZY = ['shrimp', 'chicken', 'pork', 'beef', 'lamb', 'duck', 'egg', 'eggs', 'fish', 'squid', 'crab', 'flour', 'sugar', 'salt', 'butter', 'onion', 'rice', 'noodles', 'cucumber', 'carrots', 'mushrooms', 'spinach', 'cabbage'];
-      if (q.length < 5 || NO_FUZZY.includes(q)) return null;
-      const sameCountryClose = allIngredientEntries.find(e => e.countryKey === preferCountry &&
-        (e.name.toLowerCase().includes(q) || q.includes(e.name.toLowerCase())));
-      if (sameCountryClose) return sameCountryClose;
-      return allIngredientEntries.find(e => e.name.toLowerCase().includes(q) || q.includes(e.name.toLowerCase())) || null;
+      const qw = matchWords(name.replace(/\([^)]*\)/g, ' '));
+      const alias = INGREDIENT_ALIASES[`${preferCountry}:${q}`] || INGREDIENT_ALIASES[q];
+      if (alias) return ingredientIndex[alias] || null;
+      const named = e => entryForms(e).includes(qw);
+      const local = countryEntries(preferCountry);
+      const exact = local.find(e => e.name.toLowerCase() === q) || local.find(named) || ingredientsByName[q];
+      if (exact) return exact;
+      if (qw.length < 4 || MATCH_EXACT_ONLY.includes(qw)) return allIngredientEntries.find(named) || null;
+      return bestSameKind(local, qw)
+        || allIngredientEntries.find(named)
+        || (MATCH_LOCAL_ONLY.includes(qw) ? null : bestSameKind(allIngredientEntries, qw))
+        || null;
     }
 
     // Specimen illustrations (drawn by illustrations.js)

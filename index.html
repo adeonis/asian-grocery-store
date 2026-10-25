@@ -9652,6 +9652,10 @@
       return `<div class="${IMAGE_SIZES[size] || IMAGE_SIZES.medium} flex-shrink-0 bg-warm-100 border border-warm-300">${illustrationSvg({ ...entry, category: entry.category || category })}</div>`;
     }
 
+    function renderDishImage(dish, size = 'small') {
+      return `<div class="${IMAGE_SIZES[size] || IMAGE_SIZES.small} flex-shrink-0 bg-warm-100 border border-warm-300">${dishSvg(dish.id, dish.name)}</div>`;
+    }
+
     function renderTechniqueImage(technique, size = 'small') {
       return `<div class="${IMAGE_SIZES[size] || IMAGE_SIZES.small} flex-shrink-0 bg-warm-100 border border-warm-300">${techniqueSvg(technique.id, technique.name)}</div>`;
     }
@@ -9744,7 +9748,7 @@
                   class="w-full px-4 py-3 text-left hover:bg-warm-200 transition-colors flex items-center gap-4"
                 >
                   ${result._type === 'dish'
-                    ? '<div class="w-12 h-12 flex-shrink-0 bg-accent/10 text-accent flex items-center justify-center text-xl">🍽</div>'
+                    ? renderDishImage(result)
                     : result._type === 'technique'
                     ? renderTechniqueImage(result)
                     : renderImage(result, 'small')}
@@ -10249,18 +10253,23 @@
       return `
         <button onclick="selectDish('${dish.id}', '${dish.countryKey}')"
           class="bg-cream border border-warm-300 p-5 text-left hover:border-accent hover:bg-warm-100 transition-colors group">
-          <div class="flex items-center gap-2 text-xs text-warm-500 mb-2">
-            <span class="text-base">${country.flag}</span>
-            <span>${country.name}</span>
-            <span class="text-warm-300">·</span>
-            <span class="capitalize">${dish.regionKey.replace(/_/g, ' ')}</span>
-          </div>
-          <div class="font-display font-semibold text-warm-900 text-lg group-hover:text-accent transition-colors">${dish.name}</div>
-          <div class="text-sm text-warm-500">${dish.native || ''}</div>
-          <div class="text-sm text-warm-600 mt-1">${dish.desc}</div>
-          <div class="text-xs text-warm-500 mt-3 flex items-center gap-2 flex-wrap">
-            <span>${dish.ingredients.length} ingredients · ${matched} in this guide</span>
-            ${owned > 0 ? `<span class="text-yellow-600 font-medium">★ you have ${owned}/${total}</span>` : ''}
+          <div class="flex items-start gap-4">
+            ${renderDishImage(dish, 'medium')}
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-2 text-xs text-warm-500 mb-2">
+                <span class="text-base">${country.flag}</span>
+                <span>${country.name}</span>
+                <span class="text-warm-300">·</span>
+                <span class="capitalize">${dish.regionKey.replace(/_/g, ' ')}</span>
+              </div>
+              <div class="font-display font-semibold text-warm-900 text-lg group-hover:text-accent transition-colors">${dish.name}</div>
+              <div class="text-sm text-warm-500">${dish.native || ''}</div>
+              <div class="text-sm text-warm-600 mt-1">${dish.desc}</div>
+              <div class="text-xs text-warm-500 mt-3 flex items-center gap-2 flex-wrap">
+                <span>${dish.ingredients.length} ingredients · ${matched} in this guide</span>
+                ${owned > 0 ? `<span class="text-yellow-600 font-medium">★ you have ${owned}/${total}</span>` : ''}
+              </div>
+            </div>
           </div>
         </button>
       `;
@@ -10341,20 +10350,23 @@
       return `
         <main class="max-w-5xl mx-auto px-6 md:px-12 py-8">
           <!-- Hero -->
-          <div class="mb-12 pb-10 border-b border-dashed border-warm-400">
-            <div class="flex items-center gap-2 mb-3">
-              <span class="fg-label text-warm-500 text-xs uppercase tracking-[0.2em]">Plate No. ${String(dish.no || 0).padStart(2, '0')} · ${country.flag} ${country.name} · <span class="capitalize">${dish.regionKey.replace(/_/g, ' ')}</span></span>
+          <div class="grid md:grid-cols-[auto,1fr] gap-8 md:gap-12 mb-12 pb-10 border-b border-dashed border-warm-400">
+            ${renderDishImage(dish, 'large')}
+            <div>
+              <div class="flex items-center gap-2 mb-3">
+                <span class="fg-label text-warm-500 text-xs uppercase tracking-[0.2em]">Plate No. ${String(dish.no || 0).padStart(2, '0')} · ${country.flag} ${country.name} · <span class="capitalize">${dish.regionKey.replace(/_/g, ' ')}</span></span>
+              </div>
+              <h1 class="text-4xl md:text-5xl font-bold text-warm-900 tracking-tight mb-2">${dish.name}</h1>
+              ${dish.native ? `<div class="text-2xl text-warm-600 font-medium mb-3">${dish.native}</div>` : ''}
+              <p class="text-xl text-warm-700 leading-relaxed mb-6">${dish.desc}</p>
+              ${(() => { const { owned, total } = dishPantryCoverage(dish); return owned > 0
+                ? `<p class="text-sm text-yellow-700 bg-yellow-50 border border-yellow-200 inline-block px-3 py-1.5 mb-4">★ You already have ${owned} of ${total} ingredients in My Pantry</p><br>`
+                : ''; })()}
+              <button id="add-dish-btn" onclick="addDishToShoppingList('${dish.id}', '${selectedCountry}')"
+                class="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-medium bg-accent text-white hover:bg-warm-800 transition-colors">
+                🛒 Add all ${dish.ingredients.length} ingredients to shopping list
+              </button>
             </div>
-            <h1 class="text-4xl md:text-5xl font-bold text-warm-900 tracking-tight mb-2">${dish.name}</h1>
-            ${dish.native ? `<div class="text-2xl text-warm-600 font-medium mb-3">${dish.native}</div>` : ''}
-            <p class="text-xl text-warm-700 leading-relaxed mb-6">${dish.desc}</p>
-            ${(() => { const { owned, total } = dishPantryCoverage(dish); return owned > 0
-              ? `<p class="text-sm text-yellow-700 bg-yellow-50 border border-yellow-200 inline-block px-3 py-1.5 mb-4">★ You already have ${owned} of ${total} ingredients in My Pantry</p><br>`
-              : ''; })()}
-            <button id="add-dish-btn" onclick="addDishToShoppingList('${dish.id}', '${selectedCountry}')"
-              class="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-medium bg-accent text-white hover:bg-warm-800 transition-colors">
-              🛒 Add all ${dish.ingredients.length} ingredients to shopping list
-            </button>
           </div>
 
           <!-- What to buy -->
@@ -10582,7 +10594,8 @@
                     ${dishes.map(dish => `
                       <button onclick="selectDish('${slugify(dish.name)}', '${selectedCountry}')"
                         class="border border-warm-300 bg-warm-50 p-5 text-left flex items-start justify-between gap-4 hover:bg-warm-100 hover:border-accent transition-colors group">
-                        <div>
+                        ${renderDishImage({ id: slugify(dish.name), name: dish.name }, 'medium')}
+                        <div class="flex-1 min-w-0">
                           <div class="font-semibold text-warm-900 text-lg group-hover:text-accent transition-colors">${dish.name}</div>
                           <div class="text-sm text-warm-500">${dish.native}</div>
                           <div class="text-sm text-warm-600 mt-1">${dish.desc}</div>

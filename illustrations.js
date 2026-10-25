@@ -1273,3 +1273,148 @@ function techniqueSvg(id, name = '') {
   }
   return techniqueCache[id];
 }
+
+// --- Dish illustrations -----------------------------------------------------
+// Each dish is drawn as it's served: a vessel (bowl, plate, pot, skewers)
+// plus the toppings you'd recognize it by. Keyed by dish id.
+const ID = {
+  clearBroth: '#E6CF95', milkyBroth: '#F1E6CF', redBroth: '#D2582E', curryYellow: '#E0A53A', curryOrange: '#D97A33',
+  greenCurry: '#93A856', brownSauce: '#7A4524', darkSauce: '#4A2A1A', noodle: '#F2E3B3', eggNoodle: '#E8C25A',
+  rice: '#FBF8EF', pork: '#E6A58F', beef: '#9B4A3A', crisp: '#D49A3C', stone: '#3E3B36', bamboo: '#D8BE84', leaf: '#5E8A3A'
+};
+
+// Vessels: each returns [behind, front] so toppings can sit between them
+// Bowls and pots are seen three-quarters from above so the whole surface
+// (broth color, noodles, toppings) shows; the front wall is a crescent below it.
+const vBowl = (broth, bowl = IC.cream) => [
+  [P('M38 82 h24 v6 h-24z', illoShade(bowl, -0.1), { sw: 1.8 }), E(50, 44, 42, 21, bowl), E(50, 44, 37, 17, broth)],
+  [P('M8 44 A42 21 0 0 0 92 44 C92 66 74 84 50 84 C26 84 8 66 8 44z', bowl)]
+];
+const vPot = (stew, pot = IT.iron) => [
+  [P('M8 86 h84 v4 h-84z', IC.tan, { sw: 1.6 }), E(50, 44, 42, 20, pot), E(50, 44, 37, 16, stew)],
+  [P('M8 44 A42 20 0 0 0 92 44 V70 C92 80 74 86 50 86 C26 86 8 80 8 70z', pot)]
+];
+const vPlate = (plate = IC.white) => [[E(50, 64, 44, 17, illoShade(plate, -0.06)), E(50, 62, 36, 12, plate)], []];
+const dishOf = ([back, front], toppings) => [...back, ...(front.length ? [G('translate(0 4)', toppings)] : toppings), ...front];
+
+// Toppings
+const dNoodles = (color, rows = [[28, 72, 34], [20, 80, 40], [20, 80, 46], [26, 74, 52]], w = 2.6) => {
+  const d = rows.map(([x0, x1, y]) => `M${x0} ${y}` + ' q2.5 -3 5 0 t5 0'.repeat(Math.floor((x1 - x0) / 10))).join(' ');
+  return [L(d, { width: w + 1.8 }), L(d, { width: w, stroke: color })];
+};
+const dEgg = (x, y, r = 6, yolk = IC.orange) => G(`translate(${x} ${y})`, [E(0, 0, r, r * 0.8, IC.white), fine(Ci(0, 0, r * 0.45, yolk), 1)]);
+const dSlices = (x, y, color, n = 3, rot = -10) => G(`rotate(${rot} ${x} ${y})`, Array.from({ length: n }, (_, i) =>
+  P(`M${x - 9 + i * 6} ${y - 4} c4-3 10-3 12 0 c1 3-1 6-6 6 c-5 0-7-3-6-6z`, i % 2 ? illoShade(color, -0.08) : color, { sw: 1.4, off: 1.2 })));
+const dChashu = (x, y) => G(`translate(${x} ${y})`, [E(0, 0, 8, 6, ID.pork), fine(E(0, 0, 5, 3.4, '#F2C7B5'), 1)]);
+const dScallion = (pts) => pts.map(([x, y]) => fine(Ci(x, y, 2, IC.paleGreen), 1));
+const dLeaf = (x, y, rot, color = IC.herb, len = 12) => leafAt(x, y, rot, len, len * 0.4, color, { sw: 1.3 });
+const dChili = (pts, color = IC.chili) => pts.map(([x, y, r = 0]) => fine(E(x, y, 1.8, 3.6, color, r), 1));
+const dCube = (x, y, color = IC.white, s = 5) => fine(P(`M${x - s} ${y - s} h${s * 2} v${s * 2} h-${s * 2}z`, color), 1.3);
+const dShrimp = (x, y, s = 0.32, rot = 0) => G(`translate(${x} ${y}) rotate(${rot}) scale(${s}) translate(-56 -54)`, ILLO_FORMS.shrimp({ color: IC.salmon }));
+const dLime = (x, y, rot = 0) => G(`rotate(${rot} ${x} ${y})`, [P(`M${x - 8} ${y} a8 8 0 0 1 16 0z`, IC.lime, { sw: 1.6 }), L(`M${x} ${y} v-6 M${x} ${y} l-5 -4 M${x} ${y} l5 -4`, { width: 0.8, stroke: IC.paleGreen })]);
+const dDots = (pts, color, r = 1.6) => pts.map(([x, y]) => fine(Ci(x, y, r, color), 0.9));
+const dRice = (x, y, w = 16, h = 9) => [P(`M${x - w} ${y} c0-${h * 1.6} ${w * 2} -${h * 1.6} ${w * 2} 0z`, ID.rice, { sw: 1.8 }), ...scatter(6, x, y - h * 0.5, w * 0.55, h * 0.3, x).map(([gx, gy, r]) => L(`M${gx.toFixed(1)} ${gy.toFixed(1)} l${(2 * Math.cos(r * 3)).toFixed(1)} ${(1.4 * Math.sin(r * 3)).toFixed(1)}`, { width: 0.8, opacity: 0.4 }))];
+const dChunks = (pts, color, s = 5) => pts.map(([x, y, r = 0]) => G(`rotate(${r} ${x} ${y})`, [P(`M${x - s} ${y - s * 0.7} l${s * 1.6} -${s * 0.3} l${s * 0.4} ${s * 1.4} l-${s * 1.6} ${s * 0.3}z`, color, { sw: 1.4, off: 1.2 })]));
+const dSwirl = (x, y, color = IC.white) => L(`M${x - 10} ${y} c4-4 8 4 12 0 c3-3 6 2 8 0`, { width: 2.2, stroke: color });
+const dDrum = (x, y, color, rot = 0) => G(`rotate(${rot} ${x} ${y})`, [P(`M${x - 10} ${y - 6} c6-6 18-4 18 4 c0 6-8 8-14 6 l-8 6 l-3 -3 l6 -7 c-3-2-3-4 1-6z`, color, { sw: 1.6 }), fine(Ci(x - 14, y + 9, 2.2, IC.white), 1)]);
+const dSkewers = (n, color, { y0 = 30, piece = 'cube' } = {}) => Array.from({ length: n }, (_, i) => G(`translate(${(i - (n - 1) / 2) * 14} ${i * 4}) rotate(-28 50 50)`, [
+  L('M16 50 H90', { width: 3.4 }), L('M16 50 H90', { width: 1.6, stroke: IC.tan }),
+  ...[30, 44, 58, 72].map(x => piece === 'ball' ? fine(E(x, 50, 6.5, 5.5, color), 1.4) : P(`M${x - 6} 44 h12 v12 h-12z`, color, { sw: 1.4, off: 1.2 }))
+]));
+const dSideDish = (x, y, r, fill) => G(`translate(${x} ${y})`, [Ci(0, 0, r, IC.cream), fine(Ci(0, 0, r * 0.7, fill), 1.2)]);
+
+const ILLO_DISHES = {
+  // China
+  jiaozi: () => [...vPlate()[0], ...[[30, 58], [48, 54], [66, 58], [38, 68], [58, 68]].map(([x, y]) => G(`translate(${x} ${y})`, [P('M-10 2 c0-10 20-10 20 0 c-4 3-16 3-20 0z', ID.noodle, { sw: 1.5 }), L('M-6 -3 l1 3 M-2 -5 l0.5 3 M2 -5 l-0.5 3 M6 -3 l-1 3', { width: 0.8, opacity: 0.6 })])), dSideDish(84, 36, 10, IC.blackVinegar)],
+  'zhajiang-mian': () => dishOf(vBowl(ID.noodle, IC.white), [...dNoodles(ID.eggNoodle), P('M34 42 c2-10 26-10 30 0 c-8 4-22 4-30 0z', ID.brownSauce, { sw: 1.6 }), ...dDots([[42, 38], [50, 36], [56, 39]], ID.darkSauce, 1.4), ...[[62, 44, 60], [66, 42, 70], [70, 45, 80]].map(([x, y, r]) => G(`rotate(${r} ${x} ${y})`, [P(`M${x - 6} ${y - 1} h12 v2.4 h-12z`, IC.paleGreen, { sw: 1, off: 0.8 })]))]),
+  'lamb-skewers': () => [...dSkewers(3, ID.beef), ...dDots([[36, 40], [52, 34], [62, 52], [44, 56], [70, 40]], IC.tan, 1)],
+  'mapo-tofu': () => dishOf(vBowl(IC.chili, IC.white), [dCube(34, 42), dCube(46, 38), dCube(58, 42), dCube(68, 38), dCube(52, 46), ...dDots([[40, 46], [62, 46], [56, 36]], IC.brickRed, 1.6), ...dScallion([[44, 44], [64, 42], [38, 38]])]),
+  'kung-pao-chicken': () => [...vPlate()[0], ...dChunks([[34, 58, 10], [46, 54, -10], [58, 60, 20], [66, 54, 0], [42, 66, 30], [56, 68, -20]], ID.crisp), ...dDots([[38, 62], [52, 60], [62, 64], [50, 52]], IC.tan, 2.2), ...dChili([[30, 52, 40], [70, 62, -30], [48, 70, 70]], IC.brickRed)],
+  'dan-dan-noodles': () => dishOf(vBowl(IC.chili, IC.white), [...dNoodles(ID.noodle), P('M40 40 c2-6 14-6 16 0 c-4 3-12 3-16 0z', ID.brownSauce, { sw: 1.4 }), dLeaf(66, 46, -60, IC.deepGreen, 14), dLeaf(28, 44, 50, IC.deepGreen, 12), ...dScallion([[50, 37]])]),
+  'char-siu': () => [P('M12 60 h76 v18 h-76z', ID.bamboo), L('M12 66 h76', { width: 0.8, opacity: 0.4 }), ...[0, 1, 2, 3].map(i => G(`translate(${22 + i * 15} 52) rotate(-12)`, [P('M-6 -8 h12 c2 0 3 2 3 4 v10 c0 2-1 3-3 3 h-12 c-2 0-3-1-3-3 v-10 c0-2 1-4 3-4z', '#E8A08A', { sw: 1.5 }), L('M-8 -6 h15 M-8 7 h15', { width: 2.4, stroke: IC.red })]))],
+  'steamed-fish': () => [E(50, 64, 46, 18, IC.white), G('translate(50 58) scale(0.78) translate(-50 -50)', ILLO_FORMS.fish({ color: IC.metal })), ...[[36, 54], [46, 50], [56, 54], [64, 50]].map(([x, y], i) => L(`M${x} ${y} l8 ${i % 2 ? -2 : 2}`, { width: 1.6, stroke: i % 2 ? IC.paleGreen : IC.yellow })), E(50, 72, 30, 3, IC.soyLight)],
+  'wonton-noodles': () => dishOf(vBowl(ID.clearBroth, IC.white), [...dNoodles(ID.eggNoodle, [[22, 78, 44], [26, 74, 48]], 2), ...[[34, 38], [52, 36], [66, 40]].map(([x, y]) => G(`translate(${x} ${y})`, [P('M-7 2 c-2-8 6-10 7-6 c1-4 9-2 7 6 c-4 3-10 3-14 0z', '#F3E7D0', { sw: 1.4 }), fine(Ci(0, 0, 2.2, IC.salmon), 0.8)])), dLeaf(46, 46, -70, IC.deepGreen, 12)]),
+  'steamed-fish-head': () => [E(50, 64, 46, 18, IC.white), P('M18 64 c4-18 30-26 52-18 l12 -8 v32 l-12 -8 c-22 8-48 2-52 2z', IC.metal), ...scatter(20, 46, 56, 20, 7, 3).map(([x, y]) => fine(P(`M${x} ${y} l3 -1 l1 3 l-3 1z`, IC.chili), 0.8)), Ci(26, 58, 2.4, ILLO_INK)],
+  'red-braised-pork': () => dishOf(vBowl(ID.darkSauce, IC.white), [...[[32, 40], [48, 36], [62, 40], [42, 46], [58, 46]].map(([x, y]) => G(`translate(${x} ${y})`, [P('M-7 -6 h14 v12 h-14z', '#8E3A26', { sw: 1.4 }), L('M-7 -2 h14 M-7 2 h14', { width: 1.6, stroke: IC.cream })])), ...dScallion([[52, 32], [38, 34]])]),
+  'lion-s-head': () => dishOf(vPot(ID.clearBroth, IT.clay), [dLeaf(26, 50, 60, IC.paleGreen, 20), dLeaf(74, 50, -60, IC.paleGreen, 20), Ci(38, 36, 12, ID.brownSauce), Ci(62, 38, 12, illoShade(ID.brownSauce, 0.1)), L('M32 30 c3-2 6-2 8 0 M56 32 c3-2 6-2 8 0', { width: 1.2, stroke: IC.tan })]),
+
+  // Japan
+  tonkatsu: () => [...vPlate()[0], P('M52 52 c4-8 18-8 26 0 c4 6 2 14-6 14 h-14 c-8 0-10-8-6-14z', IC.paleGreen), L('M56 54 l6 6 M62 52 l6 8 M68 54 l4 6', { width: 1, stroke: IC.white }), ...[0, 1, 2, 3].map(i => G(`translate(${20 + i * 8} ${58 - i}) rotate(-8)`, [P('M0 -8 h7 v18 h-7z', ID.crisp, { sw: 1.4 }), L('M1 -6 h5', { width: 1.6, stroke: '#F6E3C8' })])), L('M20 50 c8-3 18-3 28 0', { width: 2.4, stroke: ID.darkSauce })],
+  soba: () => [P('M12 40 h56 v40 h-56z', ID.bamboo), L('M12 46 h56 M12 52 h56 M12 58 h56 M12 64 h56 M12 70 h56', { width: 0.8, opacity: 0.35 }), ...dNoodles(IC.grey, [[18, 62, 50], [18, 62, 56], [20, 60, 62], [22, 58, 68]], 2.2), ...[[30, 46], [40, 44], [50, 47]].map(([x, y]) => fine(P(`M${x} ${y} h6 v2 h-6z`, IC.seaweed), 0.8)), G('translate(80 56)', [P('M-10 -10 h20 l-2 22 h-16z', IC.blue, { sw: 1.8 }), E(0, -10, 10, 3, ID.darkSauce)])],
+  okonomiyaki: () => [...vPlate()[0], E(50, 56, 32, 14, ID.crisp), E(50, 54, 28, 11, ID.brownSauce), L('M26 50 l6 6 l6 -8 l6 8 l6 -8 l6 8 l6 -8 l6 8 l4 -4', { width: 1.6, stroke: IC.white }), ...scatter(8, 50, 52, 18, 6, 7).map(([x, y]) => fine(P(`M${x} ${y} l4 -2 l1 3 l-4 1z`, IC.pink), 0.8)), ...dDots([[38, 48], [58, 56], [46, 58], [64, 50]], IC.herb, 1)],
+  'kitsune-udon': () => dishOf(vBowl(ID.clearBroth, IC.red), [...dNoodles(ID.noodle, [[22, 78, 42], [24, 76, 47]], 4), P('M30 42 l20 -16 l12 18z', ID.crisp, { sw: 1.8 }), G('translate(70 38)', [Ci(0, 0, 6, IC.white), L('M-3 0 a3 3 0 1 1 3 3', { width: 1.2, stroke: IC.pink })]), ...dScallion([[60, 44], [64, 46], [44, 46]])]),
+  'hakata-ramen': () => dishOf(vBowl(ID.milkyBroth, IT.iron), [...dNoodles(ID.noodle, [[22, 78, 44], [26, 74, 48]], 1.4), dChashu(36, 40), P('M58 28 h10 v16 h-10z', IC.seaweed, { sw: 1.4 }), ...dScallion([[50, 40], [54, 44], [46, 44], [62, 46]]), ...dDots([[70, 42], [72, 44], [68, 45]], IC.red, 1.4)]),
+  'miso-ramen': () => dishOf(vBowl(IC.tan, IC.white), [...dNoodles(ID.eggNoodle, [[22, 78, 46]], 2.2), ...dDots([[32, 40], [34, 43], [30, 44], [36, 41]], IC.yellow, 1.8), P('M46 34 h8 v6 h-8z', IC.yellow, { sw: 1.4 }), dChashu(64, 40), L('M40 44 c2-4 4-6 4-10 M44 46 c1-4 3-6 2-10', { width: 1.4, stroke: IC.white }), dEgg(50, 44, 5)]),
+  'goya-champuru': () => [...vPlate()[0], ...[[30, 58, 20], [46, 54, -10], [62, 60, 30], [40, 66, -30], [58, 68, 10]].map(([x, y, r]) => G(`rotate(${r} ${x} ${y})`, [P(`M${x - 8} ${y} a8 5 0 0 0 16 0 a8 3 0 0 1 -16 0z`, IC.herb, { sw: 1.4 })])), ...[[36, 54], [52, 62], [68, 54]].map(([x, y]) => fine(P(`M${x} ${y} c2-4 8-4 8 0 c-2 3-6 3-8 0z`, IC.yellow), 1)), dCube(48, 54, IC.white, 3.4)],
+
+  // Korea
+  bulgogi: () => [P('M10 70 h80 v6 h-80z', ID.bamboo, { sw: 1.6 }), E(50, 60, 40, 14, IT.iron), ...[[30, 56, -10], [44, 52, 10], [58, 58, -20], [68, 52, 15], [40, 62, 25]].map(([x, y, r]) => G(`rotate(${r} ${x} ${y})`, [P(`M${x - 8} ${y - 3} c4-3 12-3 16 0 c-2 4-12 5-16 0z`, ID.beef, { sw: 1.4 })])), ...[[50, 64], [36, 52]].map(([x, y]) => L(`M${x - 5} ${y} c3-3 7-3 10 0`, { width: 1.6, stroke: IC.white })), ...dScallion([[62, 64], [52, 54]]), tSteam(36, 36)],
+  japchae: () => [...vPlate()[0], ...dNoodles(IC.clear, [[22, 78, 56], [24, 74, 61], [28, 70, 66]], 1.6), ...[[30, 52, 20, IC.orange], [42, 50, -10, IC.deepGreen], [56, 52, 30, IC.brown], [66, 58, -20, IC.orange], [48, 62, 10, IC.deepGreen], [36, 64, -30, IC.brown]].map(([x, y, r, c]) => G(`rotate(${r} ${x} ${y})`, [P(`M${x - 6} ${y - 1} h12 v2.6 h-12z`, c, { sw: 1, off: 0.8 })])), ...dDots([[44, 56], [58, 62], [50, 54]], IC.cream, 1)],
+  samgyetang: () => dishOf(vPot(ID.milkyBroth, IT.iron), [P('M32 42 c-2-12 8-18 18-16 c12-2 20 6 18 16z', '#F2DFC0', { sw: 1.8 }), L('M40 30 c4 4 12 4 18 0', { width: 1, opacity: 0.4 }), ...dDots([[30, 44], [70, 42]], IC.red, 2.4), G('rotate(-30 68 34)', [P('M64 26 h4 l1 16 h-6z', IC.cream, { sw: 1.3 })]), ...dScallion([[44, 44], [56, 44]])]),
+  bibimbap: () => dishOf(vBowl(ID.rice, ID.stone), [...[[30, 44, IC.orange], [40, 38, IC.deepGreen], [60, 38, IC.brown], [70, 44, IC.paleGreen], [36, 48, IC.chili]].map(([x, y, c]) => fine(E(x, y, 6, 3.4, c), 1.2)), dEgg(52, 44, 7, IC.yellow), fine(Ci(62, 48, 3, IC.brickRed), 1)]),
+  'kimchi-jjigae': () => dishOf(vPot(IC.chili, IT.iron), [...[[30, 42], [64, 40]].map(([x, y]) => dCube(x, y, IC.white, 4.4)), dSlices(46, 40, ID.pork, 3, 0), P('M60 46 c2-4 10-4 12 0z', IC.paleGreen, { sw: 1.2 }), ...dScallion([[38, 38], [56, 36]]), tSteam(38, 28)]),
+  'dwaeji-gukbap': () => dishOf(vBowl(ID.milkyBroth, IT.iron), [dSlices(36, 40, ID.pork, 3, -6), dSlices(60, 42, ID.pork, 2, 10), ...dScallion([[48, 44], [52, 40], [44, 38], [66, 38]]), ...dDots([[70, 44], [72, 41]], IC.brickRed, 1.6)]),
+
+  // Thailand
+  'pad-thai': () => [...vPlate()[0], ...dNoodles(ID.crisp, [[22, 78, 56], [24, 76, 61], [28, 72, 66]], 3.4), dShrimp(36, 52, 0.28, -20), dShrimp(58, 54, 0.28, 10), ...dDots([[46, 56], [50, 60], [64, 62], [42, 64]], IC.tan, 2), ...[[66, 50], [70, 54]].map(([x, y]) => L(`M${x} ${y} l8 -6`, { width: 2.4, stroke: IC.white })), dLime(78, 66, 20)],
+  'green-curry': () => dishOf(vBowl(ID.greenCurry, IC.white), [dSwirl(40, 44), ...[[30, 42], [62, 44]].map(([x, y]) => fine(Ci(x, y, 4.4, IC.paleGreen), 1.2)), ...dChunks([[48, 40], [70, 40]], IC.cream, 4), dLeaf(54, 46, 30, IC.deepGreen, 10), dLeaf(36, 36, -40, IC.deepGreen, 10), ...dChili([[58, 38, 60]])]),
+  'tom-yum-goong': () => dishOf(vBowl(ID.redBroth, IC.white), [dShrimp(36, 40, 0.28, 0), dShrimp(60, 42, 0.28, 30), ...[[48, 38], [70, 44]].map(([x, y]) => fine(P(`M${x - 4} ${y} a4 3 0 0 1 8 0z`, IC.cream), 1)), G('rotate(-20 46 44)', [P('M38 43 h16 v3 h-16z', IC.paleGreen, { sw: 1 })]), dLeaf(28, 46, 60, IC.deepGreen, 9), ...dChili([[52, 46, 50], [66, 38, 20]])]),
+  'khao-soi': () => dishOf(vBowl(ID.curryYellow, IC.white), [dDrum(44, 42, ID.brownSauce, -10), ...dNoodles(ID.eggNoodle, [[30, 50, 47]], 2), L('M52 34 l4 -6 l3 6 l4 -7 l3 7 l4 -6 l2 6 M50 38 l5 -4 l4 4 l5 -5 l4 5 l4 -4', { width: 3.6 }), L('M52 34 l4 -6 l3 6 l4 -7 l3 7 l4 -6 l2 6 M50 38 l5 -4 l4 4 l5 -5 l4 5 l4 -4', { width: 2, stroke: ID.crisp }), dLime(28, 44, -30)]),
+  'som-tam': () => [...vPlate()[0], ...scatter(26, 48, 58, 22, 8, 5).map(([x, y, r]) => L(`M${x.toFixed(1)} ${y.toFixed(1)} l${(6 * Math.cos(r * 6)).toFixed(1)} ${(3 * Math.sin(r * 6)).toFixed(1)}`, { width: 1.6, stroke: IC.paleGreen })), ...[[34, 54], [62, 60]].map(([x, y]) => fine(P(`M${x - 5} ${y} a5 5 0 0 1 10 0z`, IC.red), 1.2)), ...dDots([[46, 52], [52, 64], [58, 54]], IC.tan, 2), ...[[66, 50], [72, 54]].map(([x, y]) => L(`M${x} ${y} l10 -4`, { width: 2.6, stroke: IC.herb })), dLime(28, 66, 0)],
+  larb: () => [...vPlate()[0], P('M20 66 c-2-16 20-22 34-14 c14-8 30 0 28 14 c-14 6-46 6-62 0z', IC.paleGreen), ...scatter(16, 50, 58, 18, 6, 9).map(([x, y]) => fine(Ci(x, y, 2, ID.brownSauce), 0.8)), dLeaf(40, 56, -30, IC.herb, 10), dLeaf(60, 54, 30, IC.herb, 10), ...dChili([[50, 54, 30]]), ...dDots([[44, 62], [56, 62]], IC.tan, 1.2)],
+  'massaman-curry': () => dishOf(vBowl(ID.curryOrange, IC.white), [...[[34, 40], [58, 38]].map(([x, y]) => fine(P(`M${x - 6} ${y} c0-6 12-6 12 0 c0 5-12 5-12 0z`, IC.yellow), 1.3)), ...dChunks([[46, 44], [68, 44]], ID.beef, 4.4), ...dDots([[40, 46], [52, 40], [62, 46], [30, 46]], IC.tan, 2.2), dSwirl(48, 36, IC.cream)]),
+
+  // Vietnam
+  'pho-bo': () => dishOf(vBowl(ID.clearBroth, IC.white), [...dNoodles(ID.noodle, [[22, 78, 44], [26, 74, 48]], 2), dSlices(40, 39, IC.pink, 3, -6), ...[[58, 38], [64, 42]].map(([x, y]) => L(`M${x - 5} ${y} c3-3 7-3 10 0`, { width: 1.6, stroke: IC.white })), dLeaf(70, 40, -50, IC.herb, 12), ...dScallion([[52, 44], [30, 44]]), G('translate(84 70) scale(0.7)', [P('M-8 0 a8 8 0 0 1 16 0z', IC.lime, { sw: 1.8 })])]),
+  'bun-cha': () => [...dishOf(vBowl(IC.amber, IC.white), [...[[34, 40], [52, 38], [64, 42]].map(([x, y]) => fine(E(x, y, 7, 4.4, ID.brownSauce), 1.3)), ...dChili([[44, 44, 30]]), ...[[58, 46], [40, 46]].map(([x, y]) => fine(Ci(x, y, 2.6, IC.paleGreen), 0.9))]), dLeaf(84, 30, 30, IC.herb, 12), dLeaf(88, 40, 60, IC.deepGreen, 10)],
+  'bun-bo-hue': () => dishOf(vBowl(ID.redBroth, IC.white), [...dNoodles(IC.white, [[22, 78, 46]], 3.4), dSlices(36, 40, ID.beef, 3, -6), G('translate(60 38)', [Ci(0, 0, 7, ID.pork), fine(Ci(0, 0, 2.6, IC.cream), 1)]), dLeaf(70, 44, -40, IC.herb, 10), ...dScallion([[48, 44], [52, 38]]), dLime(26, 44, -20)]),
+  'banh-xeo': () => [...vPlate()[0], dLeaf(26, 70, 60, IC.paleGreen, 22), P('M22 62 c0-22 56-22 56 0z', IC.yellow), L('M24 60 c10-6 40-6 52 0', { width: 1, opacity: 0.4 }), ...dDots([[34, 52], [62, 54], [48, 46]], IC.crisp, 1.6), dShrimp(44, 58, 0.24, 0), dShrimp(58, 56, 0.24, 20), ...[[30, 58], [70, 58]].map(([x, y]) => L(`M${x} ${y} l2 -6`, { width: 1.6, stroke: IC.white }))],
+  'com-tam': () => [...vPlate()[0], ...dRice(34, 66, 16, 10), P('M50 60 c2-8 20-10 28-4 c4 4 0 10-6 10 h-16 c-4 0-8-2-6-6z', ID.brownSauce), L('M56 58 l12 4 M58 64 l10 -2', { width: 1.2, stroke: IT.iron, opacity: 0.6 }), dEgg(40, 52, 7, IC.yellow), ...[[70, 50], [76, 54]].map(([x, y]) => fine(Ci(x, y, 3.6, IC.paleGreen), 1)), fine(P('M64 46 a4 4 0 0 1 8 0z', IC.red), 1)],
+  'goi-cuon': () => [G('translate(4 -4) scale(0.9)', ILLO_TECHNIQUES['fresh-rolls']()), dSideDish(78, 80, 12, IC.brown)],
+
+  // India
+  'butter-chicken': () => dishOf(vBowl(ID.curryOrange, IT.steel), [dSwirl(42, 42, IC.cream), ...dChunks([[30, 40], [56, 38], [64, 44]], ID.crisp, 4.4), ...dDots([[48, 38], [36, 46], [60, 46]], IC.herb, 1.2), G('rotate(-24 76 26)', [P('M60 20 c4-6 28-6 32 2 c-4 6-28 8-32-2z', IC.tan, { sw: 1.6 }), ...dDots([[70, 18], [80, 20], [74, 23]], IC.darkBrown, 1)])]),
+  'dal-makhani': () => dishOf(vBowl(ID.darkSauce, IT.steel), [dSwirl(44, 42, IC.cream), ...scatter(10, 50, 44, 26, 5, 3).map(([x, y]) => fine(Ci(x, y, 1.6, '#2A1A14'), 0.8)), P('M54 36 h8 v5 h-8z', IC.yellow, { sw: 1.3 }), ...dDots([[36, 38], [64, 44]], IC.herb, 1.2)]),
+  biryani: () => dishOf(vPot(ID.rice, IC.metal), [P('M20 46 c4-20 56-20 60 0z', ID.rice, { sw: 1.6 }), ...scatter(24, 50, 37, 24, 7, 21).map(([x, y], i) => L(`M${x.toFixed(1)} ${y.toFixed(1)} l4 -1.4`, { width: 2, stroke: i % 3 ? IC.yellow : IC.orange })), dDrum(56, 36, ID.crisp, 10), dEgg(34, 38, 5, IC.yellow), ...dDots([[44, 30], [68, 40], [40, 44]], ID.brownSauce, 1.6), dLeaf(48, 44, -30, IC.herb, 9)]),
+  dosa: () => [...vPlate()[0], G('rotate(-8 50 52)', [P('M10 48 h80 c4 0 6 4 6 7 c0 3-2 7-6 7 h-80 c-4 0-6-4-6-7 c0-3 2-7 6-7z', ID.crisp), L('M14 52 c20 2 50 2 74 0', { width: 1, opacity: 0.45 })]), dSideDish(30, 74, 8, IC.white), dSideDish(50, 78, 8, IC.chili), dSideDish(70, 74, 8, ID.curryOrange)],
+  sambar: () => dishOf(vBowl(ID.curryOrange, IT.steel), [...[[30, 30, 30], [62, 28, -20]].map(([x, y, r]) => G(`rotate(${r} ${x} ${y})`, [P(`M${x - 2} ${y} h4 v18 h-4z`, IC.herb, { sw: 1.3 })])), ...dChunks([[44, 42], [58, 44]], IC.yellow, 4), dLeaf(36, 44, 50, IC.deepGreen, 8), dLeaf(68, 42, -50, IC.deepGreen, 8), ...dDots([[50, 38], [40, 38]], IC.darkBrown, 1.2)]),
+  'machher-jhol': () => dishOf(vBowl(ID.curryYellow, IT.steel), [...[[36, 40], [60, 40]].map(([x, y]) => G(`translate(${x} ${y})`, [P('M-9 0 c0-6 18-6 18 0 c0 5-18 5-18 0z', IC.metal, { sw: 1.5 }), fine(Ci(0, 0, 2, IC.white), 0.8)])), fine(P('M44 46 c0-4 8-4 8 0 c0 3-8 3-8 0z', IC.yellow), 1.2), ...dChili([[70, 44, 70], [28, 46, -60]], IC.herb)]),
+  'pav-bhaji': () => [...vPlate()[0], P('M20 64 c2-14 30-16 36 0 c-8 4-28 4-36 0z', ID.curryOrange), P('M34 52 h8 v5 h-8z', IC.yellow, { sw: 1.3 }), ...dDots([[26, 60], [48, 60], [38, 62]], IC.lilac, 1.4), ...[[66, 56], [76, 62]].map(([x, y]) => G(`translate(${x} ${y})`, [P('M-10 4 c0-10 20-10 20 0z', ID.crisp, { sw: 1.6 }), L('M-6 0 h12', { width: 0.8, opacity: 0.4 })])), dLime(46, 72, 0)],
+  'goan-fish-curry': () => dishOf(vBowl(IC.orange, IC.cream), [dSwirl(36, 44, IC.cream), ...[[44, 40], [62, 42]].map(([x, y]) => G(`translate(${x} ${y})`, [P('M-8 0 c0-5 16-5 16 0 c0 4-16 4-16 0z', IC.metal, { sw: 1.4 })])), ...dChili([[30, 40, 60]], IC.herb), fine(P('M66 34 c2-4 8-2 6 2z', IC.purple), 1)]),
+  vindaloo: () => dishOf(vBowl(IC.brickRed, IT.steel), [...dChunks([[32, 40], [48, 38], [62, 42], [42, 46]], ID.pork, 4.4), ...dChili([[56, 46, 40], [70, 40, -20], [30, 46, 70]], IC.chili), ...dDots([[54, 36], [38, 36]], IC.herb, 1.2)]),
+
+  // Taiwan
+  'l-r-u-f-n': () => dishOf(vBowl(ID.rice, IC.white), [P('M20 40 c6-14 54-14 60 0 c-12 8-48 8-60 0z', ID.brownSauce, { sw: 1.5 }), ...dDots([[30, 38], [40, 34], [50, 36], [58, 33], [34, 42], [48, 42]], ID.darkSauce, 2), G('translate(64 38)', [E(0, 0, 8, 6, IC.brown), fine(E(0, 0, 3.6, 2.8, IC.yellow), 0.9)]), fine(P('M24 48 h12 v4 h-12z', IC.yellow), 1), fine(P('M38 50 h12 v4 h-12z', IC.yellow), 1)]),
+  'oyster-vermicelli': () => dishOf(vBowl(ID.brownSauce, IC.white), [...dNoodles('#C98F5A', [[22, 78, 42], [24, 76, 47]], 1.4), ...[[34, 40], [54, 38], [64, 44]].map(([x, y]) => fine(P(`M${x - 5} ${y} c0-4 10-4 10 0 c-2 3-8 3-10 0z`, IC.grey), 1.2)), ...dDots([[44, 44], [60, 40], [72, 42]], IC.herb, 1.4)]),
+  'pepper-buns': () => [P('M8 74 h84 v6 h-84z', IC.tan, { sw: 1.6 }), ...[[30, 60], [66, 60], [48, 46]].map(([x, y]) => G(`translate(${x} ${y})`, [P('M-16 8 c0-20 32-20 32 0 c-6 4-26 4-32 0z', ID.crisp), ...scatter(8, 0, -2, 9, 4, x).map(([sx, sy]) => fine(E(sx, sy, 1.2, 0.8, IC.white), 0.6))]))],
+  'milkfish-congee': () => dishOf(vBowl(ID.milkyBroth, IC.blue), [...[[38, 40], [58, 42]].map(([x, y]) => fine(P(`M${x - 7} ${y} c0-4 14-4 14 0 c0 3-14 3-14 0z`, IC.white), 1.2)), ...dScallion([[48, 38], [52, 44], [66, 38]]), ...dDots([[44, 44], [32, 44], [62, 36]], ID.crisp, 1.6)]),
+  'coffin-bread': () => [...vPlate()[0], P('M24 40 h44 v26 h-44z', ID.crisp), P('M28 44 h36 v8 h-36z', IC.cream, { sw: 1.4 }), ...dDots([[36, 47], [48, 46], [58, 48]], IC.orange, 1.6), G('rotate(-24 66 34)', [P('M50 30 h28 v6 h-28z', '#E9C98A', { sw: 1.6 })])],
+
+  // Philippines
+  'chicken-adobo': () => [...vPlate()[0], ...dRice(68, 66, 13, 8), dDrum(36, 56, ID.darkSauce, -10), dDrum(48, 66, illoShade(ID.darkSauce, 0.15), 20), ...dDots([[28, 64], [54, 56]], IC.cream, 2.2), dLeaf(58, 50, 60, IC.deepGreen, 8), E(40, 70, 14, 2.6, ID.darkSauce)],
+  'sinigang-na-baboy': () => dishOf(vBowl(ID.clearBroth, IC.white), [dSlices(32, 40, ID.pork, 2, 0), ...[[54, 42], [64, 38]].map(([x, y]) => fine(Ci(x, y, 4.4, IC.white), 1.2)), fine(P('M44 40 a4 4 0 0 1 8 0z', IC.red), 1), dLeaf(70, 44, -60, IC.deepGreen, 12), dLeaf(40, 46, 70, IC.deepGreen, 10), ...dChili([[58, 46, 70]], IC.herb)]),
+  'kare-kare': () => dishOf(vPot(ID.curryOrange, IT.clay), [...dChunks([[34, 40], [52, 36]], ID.beef, 5), dLeaf(64, 40, -40, IC.deepGreen, 12), fine(E(70, 44, 6, 3, IC.purple), 1.2), ...dDots([[44, 42], [58, 44], [30, 44]], IC.tan, 1.4), dSideDish(86, 30, 8, IC.pink)]),
+  'lechon-kawali': () => [...vPlate()[0], ...[[34, 58], [52, 54], [66, 60], [46, 66]].map(([x, y]) => G(`translate(${x} ${y}) rotate(${x % 3 * 8 - 8})`, [P('M-8 -7 h16 v14 h-16z', ID.pork, { sw: 1.4 }), P('M-8 -7 h16 v4 h-16z', ID.crisp, { sw: 1.2, off: 0.8 }), L('M-8 1 h16', { width: 1.4, stroke: IC.cream })])), dSideDish(80, 46, 8, IC.brown)],
+  'la-paz-batchoy': () => dishOf(vBowl(ID.clearBroth, IC.white), [...dNoodles(ID.eggNoodle, [[22, 78, 44], [26, 74, 48]], 2), dSlices(38, 39, ID.pork, 2, -4), ...scatter(8, 58, 38, 8, 3, 5).map(([x, y]) => fine(P(`M${x} ${y} l3 -1 l1 3 l-3 1z`, ID.crisp), 0.8)), ...dScallion([[50, 44], [66, 42], [30, 44]]), dEgg(64, 44, 4.4, IC.yellow)]),
+  'chicken-inasal': () => [P('M8 64 c10-16 74-16 84 0 c-10 14-74 14-84 0z', ID.leaf), L('M12 64 h76 M24 58 l8 6 M44 56 l6 8 M64 56 l-6 8', { width: 1, stroke: IC.paleGreen }), dDrum(48, 56, IC.orange, -12), L('M34 52 l20 2 M38 58 l20 2', { width: 1.6, stroke: ID.brownSauce, opacity: 0.7 }), ...[[70, 62], [76, 58], [74, 66]].map(([x, y]) => fine(Ci(x, y, 3.2, IC.lime), 1))],
+  'beef-tapa': () => [...vPlate()[0], ...dRice(34, 66, 15, 9), ...dDots([[30, 56], [38, 58]], IC.gold, 1.2), dEgg(66, 66, 8, IC.yellow), ...[[52, 54, -20], [62, 52, 10], [72, 56, 30]].map(([x, y, r]) => G(`rotate(${r} ${x} ${y})`, [P(`M${x - 8} ${y - 2} h16 v4 h-16z`, '#6E2E22', { sw: 1.4 })]))],
+  satti: () => [...dSkewers(3, ID.brownSauce, { piece: 'ball' }), dSideDish(80, 78, 13, IC.chili)],
+
+  // Laos
+  laab: () => [...vPlate()[0], P('M18 66 c4-12 34-14 42 0 c-10 4-32 4-42 0z', ID.brownSauce), ...scatter(10, 38, 60, 14, 3, 13).map(([x, y]) => fine(Ci(x, y, 1.4, IC.tan), 0.7)), dLeaf(30, 58, -30, IC.herb, 9), dLeaf(46, 56, 30, IC.herb, 9), ...dChili([[38, 56, 30]]), G('translate(72 58)', [P('M-12 -14 c0-6 24-6 24 0 v14 c0 8-24 8-24 0z', ID.bamboo), L('M-12 -8 h24 M-12 -2 h24 M-12 4 h24', { width: 0.8, opacity: 0.5 }), P('M-12 -14 c4-8 20-8 24 0z', ID.rice, { sw: 1.4 })])],
+  'tam-mak-hoong': () => [...ILLO_TECHNIQUES['curry-paste']().slice(0, 1), P('M20 54 h60 c0 20-12 32-30 32 c-18 0-30-12-30-32z', IT.clay), E(50, 54, 30, 6, '#B8B07A'), ...scatter(10, 50, 50, 20, 3, 4).map(([x, y, r]) => L(`M${x.toFixed(1)} ${y.toFixed(1)} l${(5 * Math.cos(r * 6)).toFixed(1)} -2`, { width: 1.4, stroke: IC.paleGreen })), ...dChili([[36, 48, 60], [62, 50, -40]]), fine(P('M44 50 a4 4 0 0 1 8 0z', IC.red), 1)],
+  'khao-piak-sen': () => dishOf(vBowl('#EDE2C4', IC.white), [...dNoodles(IC.white, [[22, 78, 44], [26, 74, 48]], 3.6), ...dChunks([[36, 40], [56, 38]], IC.cream, 4.4), ...dDots([[46, 38], [64, 44], [30, 44]], ID.crisp, 1.8), dLeaf(68, 40, -40, IC.herb, 10), ...dScallion([[50, 44]])]),
+  'or-lam': () => dishOf(vPot('#8A7A3A', IT.clay), [...[[32, 42, 10], [60, 40, -20]].map(([x, y, r]) => G(`rotate(${r} ${x} ${y})`, [P(`M${x - 8} ${y - 2} h16 v4 h-16z`, IC.brown, { sw: 1.3 }), L(`M${x - 6} ${y} h12`, { width: 0.8, opacity: 0.5 })])), fine(E(46, 44, 6, 3.4, IC.purple), 1.2), dLeaf(70, 42, -50, IC.deepGreen, 12), dLeaf(40, 40, 50, IC.deepGreen, 10), fine(P('M52 38 a4 3 0 0 1 8 0z', IC.tan), 1)]),
+  'ping-kai': () => [L('M50 92 V8', { width: 5 }), L('M50 92 V8', { width: 3, stroke: IC.tan }), P('M36 22 c4-6 24-6 28 0 c10 4 16 14 12 22 l-6 -2 c2 8 2 16-2 22 l6 14 l-8 2 l-6 -12 h-20 l-6 12 l-8 -2 l6 -14 c-4-6-4-14-2-22 l-6 2 c-4-8 2-18 12-22z', ID.crisp), L('M38 36 c8 4 16 4 24 0 M38 48 c8 4 16 4 24 0', { width: 1.2, stroke: ID.brownSauce, opacity: 0.6 }), L('M30 26 H70 M28 62 H72', { width: 4 }), L('M30 26 H70 M28 62 H72', { width: 2, stroke: IC.tan })],
+  'khao-jee': () => [...[[-1, 30], [0, 50], [1, 70]].map(([i, y]) => G(`translate(0 ${y - 50}) rotate(${i * 6} 50 50)`, [L('M12 50 H88', { width: 3.4 }), L('M12 50 H88', { width: 1.6, stroke: IC.tan }), P('M30 42 h40 c4 0 6 4 6 8 c0 4-2 8-6 8 h-40 c-4 0-6-4-6-8 c0-4 2-8 6-8z', IC.gold), ...dDots([[40, 48], [52, 52], [62, 47]], ID.crisp, 1.4)]))]
+};
+
+const dishCache = {};
+function dishSvg(id, name = '') {
+  if (!dishCache[id]) {
+    const draw = ILLO_DISHES[id];
+    const parts = draw ? draw() : ILLO_FORMS.bowl({ color: IC.amber, bowl: IC.cream });
+    dishCache[id] = `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="${name.replace(/"/g, '&quot;')}">${illoRender(parts)}</svg>`;
+  }
+  return dishCache[id];
+}

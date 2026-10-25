@@ -58,26 +58,97 @@ function illoShade(hex, amt) {
   return '#' + [16, 8, 0].map(s => ch(s).toString(16).padStart(2, '0')).join('');
 }
 
-// Short native-script label for packaging (a few characters fit on a jar)
-function illoLabel(o, width) {
-  const raw = (o.label || '').split(/[\/(（]/)[0].trim();
-  if (!raw) return [];
-  const chars = Array.from(raw);
-  const isWide = /[　-鿿가-힯]/.test(raw);
-  const max = isWide ? Math.max(2, Math.floor(width / 7)) : Math.floor(width / 4.4);
-  const text = chars.slice(0, max).join('').replace(/&/g, '&amp;').replace(/</g, '&lt;');
-  const len = Math.min(chars.length, max);
-  const size = isWide ? Math.min(11, (width - 4) / len) : Math.min(8, (width - 4) / (len * 0.62));
-  return [text, Math.max(5, size)];
+// Native-script label for packaging. Width is estimated per grapheme by
+// script (Thai and Devanagari vowel marks don't take their own space), long
+// labels wrap onto two lines at word boundaries, and anything that still
+// won't fit is cut at a word, never mid-word.
+const illoSegmenter = g => (typeof Intl !== 'undefined' && Intl.Segmenter ? new Intl.Segmenter(undefined, { granularity: g }) : null);
+const illoGraphemes = illoSegmenter('grapheme');
+const illoWords = illoSegmenter('word');
+
+function illoSplit(str, seg) {
+  if (seg) return Array.from(seg.segment(str), x => x.segment);
+  return seg === illoWords ? str.split(/(\s+)/) : Array.from(str);
 }
 
-function labelText(o, w, cx, cy) {
-  const lab = illoLabel(o, w);
-  return lab.length ? [T(lab[0], cx, cy, lab[1])] : [];
+// Text width in ems. In the browser, measure with the reader's own fonts; the
+// per-script estimate is only a fallback.
+let illoCtx;
+function illoEm(str) {
+  if (illoCtx === undefined) {
+    try { illoCtx = document.createElement('canvas').getContext('2d'); illoCtx.font = '600 100px system-ui, sans-serif'; } catch (e) { illoCtx = null; }
+  }
+  if (illoCtx) return illoCtx.measureText(str).width / 100 * 1.06; // a little air at the label edges
+  return illoSplit(str, illoGraphemes).reduce((sum, g) => sum + (
+    /[\u3000-\u9fff\uac00-\ud7af\uff00-\uffef]/.test(g) ? 1
+    : /[\u0e00-\u0eff]/.test(g) ? 0.84
+    : /[\u0900-\u097f]/.test(g) ? 0.76
+    : /\s/.test(g) ? 0.3
+    : /[A-Z\u0110]/.test(g) ? 0.74 : 0.62), 0);
+}
+
+function illoLabelLines(o, w, h) {
+  const raw = (o.label || '').split(/[\/(\uff08]/)[0].trim();
+  if (!raw) return [];
+  const avail = w - 4;
+  const cap = /[\u3000-\u9fff\uac00-\ud7af]/.test(raw) ? 12 : 9;
+  const one = Math.min(cap, h * 0.5, avail / illoEm(raw));
+  let best = { lines: [raw], size: one };
+
+  const parts = illoSplit(raw, illoWords);
+  if (parts.filter(x => x.trim()).length > 1) {
+    for (let i = 1; i < parts.length; i++) {
+      const a = parts.slice(0, i).join('').trim(), b = parts.slice(i).join('').trim();
+      if (!a || !b) continue;
+      const size = Math.min(cap, h * 0.36, avail / Math.max(illoEm(a), illoEm(b)));
+      if (size > best.size * 1.15 && (best.lines.length === 1 || size > best.size)) best = { lines: [a, b], size };
+    }
+  }
+  if (best.size < 5.5) { // still too small: keep the leading whole words that fit
+    let text = '';
+    for (const part of parts) {
+      if (text.trim() && illoEm((text + part).trim()) * 5.5 > avail) break;
+      text += part;
+    }
+    text = text.trim();
+    best = { lines: [text], size: Math.min(cap, h * 0.5, avail / illoEm(text)) };
+  }
+  const esc = t => t.replace(/&/g, '&amp;').replace(/</g, '&lt;');
+  return best.lines.map(t => [esc(t), +best.size.toFixed(2)]);
+}
+
+function labelText(o, w, cx, cy, h = 14) {
+  const lines = illoLabelLines(o, w, h);
+  return lines.map(([text, size], i) => T(text, cx, cy + (i - (lines.length - 1) / 2) * size * 1.15, size));
 }
 
 function labelParts(o, x, y, w, h) {
-  return [P(`M${x} ${y} h${w} v${h} h-${w}z`, ILLO_PAPER, { sw: 1.8 }), ...labelText(o, w, x + w / 2, y + h / 2)];
+  return [P(`M${x} ${y} h${w} v${h} h-${w}z`, ILLO_PAPER, { sw: 1.8 }), ...labelText(o, w, x + w / 2, y + h / 2, h)];
+}
+
+// Blend two hex colors (t = 0 keeps a, 1 gives b)
+function illoMix(a, b, t) {
+  const ch = (h, s) => (parseInt(h.slice(1), 16) >> s) & 255;
+  return '#' + [16, 8, 0].map(s => Math.round(ch(a, s) + (ch(b, s) - ch(a, s)) * t).toString(16).padStart(2, '0')).join('');
+}
+
+// A dish holding a heap of something: the heap reads as one shape, so the
+// seeds or flakes drawn on top can stay few and legible. Dark seeds sit on a
+// lighter heap, light seeds on a darker one.
+function dishMound(color) {
+  const n = parseInt(color.slice(1), 16);
+  const lum = (0.3 * (n >> 16) + 0.59 * ((n >> 8) & 255) + 0.11 * (n & 255)) / 255;
+  return [
+    E(50, 70, 40, 11, IC.cream),
+    P('M18 69 c4-28 60-28 64 0 c-14 6-50 6-64 0z', lum < 0.35 ? illoMix(color, ILLO_PAPER, 0.4) : illoMix(color, ILLO_INK, 0.22))
+  ];
+}
+
+// Deterministic points spread over the face of a dishMound heap
+function moundPoints(n, seed) {
+  return scatter(n * 3, 50, 58, 30, 11, seed)
+    .filter(([x, y]) => { const u = (x - 50) / 30; return Math.abs(u) < 0.95 && y > 69 - 20 * (1 - u * u) + 3 && y < 67; })
+    .slice(0, n).sort((a, b) => a[1] - b[1]);
 }
 
 function scatter(n, cx, cy, rx, ry, seed) {
@@ -98,41 +169,41 @@ const ILLO_FORMS = {
     P('M43 6 h14 v10 h-14z', o.cap || IC.red),
     P('M44 16 h12 v10 c0 5 11 8 11 16 v44 c0 3-2 5-5 5 h-24 c-3 0-5-2-5-5 v-44 c0-8 11-11 11-16z', o.color),
     L('M38 46 v6', { stroke: ILLO_PAPER, width: 2.2 }),
-    ...labelParts(o, 37, 56, 26, 22)
+    ...labelParts(o, 35, 54, 30, 26)
   ],
   tallBottle: o => [
     P('M45 4 h10 v9 h-10z', o.cap || IC.darkBrown),
     P('M46 13 h8 v18 c0 5 9 7 9 14 v42 c0 3-2 5-5 5 h-16 c-3 0-5-2-5-5 v-42 c0-7 9-9 9-14z', o.color),
     L('M40 48 v6', { stroke: ILLO_PAPER, width: 2.2 }),
-    ...labelParts(o, 39, 58, 22, 22)
+    ...labelParts(o, 38, 56, 24, 26)
   ],
   squeeze: o => [
     P('M48.5 18 l1.5-10 l1.5 10z', o.cap || IC.herb),
     P('M43 32 l4-14 h6 l4 14z', o.cap || IC.herb),
     P('M34 38 c0-5 4-7 8-7 h16 c4 0 8 2 8 7 v46 c0 3-2 5-5 5 h-22 c-3 0-5-2-5-5z', o.color),
-    ...labelParts(o, 38, 50, 24, 20)
+    ...labelParts(o, 37, 48, 26, 26)
   ],
   jar: o => [
     P('M29 18 h42 v12 h-42z', o.cap || IC.red),
     P('M31 30 h38 c2 0 3 1.5 3 4 v46 c0 5-3 8-8 8 h-28 c-5 0-8-3-8-8 v-46 c0-2.5 1-4 3-4z', o.color),
     ...(o.dots ? scatter(7, 50, 79, 15, 4, 3).map(([x, y]) => fine(Ci(x, y, 3.2, o.dots))) : []),
-    ...labelParts(o, 34, 44, 32, 22)
+    ...labelParts(o, 32, 42, 36, 26)
   ],
   smallJar: o => [
     P('M34 32 h32 v10 h-32z', o.cap || IC.darkBrown),
     P('M35 42 h30 c2 0 3 1.5 3 4 v34 c0 4-3 7-7 7 h-22 c-4 0-7-3-7-7 v-34 c0-2.5 1-4 3-4z', o.color),
-    ...labelParts(o, 37, 54, 26, 18)
+    ...labelParts(o, 35, 52, 30, 22)
   ],
   tub: o => [
     P('M20 30 h60 v9 h-60z', o.cap || IC.red),
     P('M23 39 h54 l-4 43 c-0.3 3-2 5-5 5 h-36 c-3 0-4.7-2-5-5z', o.color),
-    ...labelParts(o, 33, 50, 34, 22)
+    ...labelParts(o, 30, 48, 40, 26)
   ],
   tube: o => [
     P('M30 70 h40 l-4 16 h-32z', o.cap || IC.herb),
     P('M30 70 l4-46 c0-3 3-4 5-4 h22 c2 0 5 1 5 4 l4 46z', o.color),
     L('M36 20 h28', { width: 2.4 }),
-    ...labelParts(o, 38, 34, 24, 22)
+    ...labelParts(o, 36, 32, 28, 26)
   ],
   can: o => [
     P('M28 22 v60 a22 6 0 0 0 44 0 v-60z', o.color),
@@ -142,7 +213,7 @@ const ILLO_FORMS = {
   bottleLow: o => [ // a squat bottle for thick sauces (oyster, hoisin)
     P('M42 10 h16 v10 h-16z', o.cap || IC.red),
     P('M43 20 h14 v6 c0 4 13 6 13 14 v42 c0 4-3 6-6 6 h-28 c-3 0-6-2-6-6 v-42 c0-8 13-10 13-14z', o.color),
-    ...labelParts(o, 36, 52, 28, 24)
+    ...labelParts(o, 34, 50, 32, 26)
   ],
   bag: o => [
     P('M26 14 h48 v8 h-48z', o.cap || IC.red),
@@ -151,13 +222,13 @@ const ILLO_FORMS = {
     ...(o.grains
       ? [P('M36 40 h28 v32 h-28z', ILLO_PAPER, { sw: 1.8 }),
          ...scatter(10, 50, 56, 10, 12, 5).map(([x, y, r]) => fine(E(x, y, 1.8, 3.4, o.grains, r * 180), 1))]
-      : labelParts(o, 34, 40, 32, 30))
+      : labelParts(o, 32, 38, 36, 32))
   ],
   box: o => [
     P('M22 34 l20 -12 h38 l-20 12z', illoShade(o.color, 0.25)),
     P('M60 34 l20 -12 v50 l-20 12z', illoShade(o.color, -0.2)),
     P('M22 34 h38 v50 h-38z', o.color),
-    ...labelParts(o, 26, 46, 30, 22)
+    ...labelParts(o, 25, 44, 32, 26)
   ],
 
   // Noodles and rice
@@ -170,7 +241,7 @@ const ILLO_FORMS = {
       L(lines.join(' '), { width: o.wide ? 1.4 : 0.9, opacity: 0.7 }),
       P('M35 43 h30 v14 h-30z', ILLO_PAPER),
       L('M35 45 h30 M35 55 h30', { width: 2, stroke: o.cap || IC.red }),
-      ...labelText(o, 28, 50, 50)
+      ...labelText(o, 28, 50, 50, 10)
     ];
   },
   nest: o => {
@@ -416,16 +487,14 @@ const ILLO_FORMS = {
   ],
   seeds: o => {
     const shape = o.shape || 'round';
-    const pts = scatter(o.count || 22, 50, 56, 26, 14, shape.length * 3);
-    return [
-      E(50, 66, 38, 13, IC.cream),
-      ...pts.map(([x, y, r]) => fine(shape === 'round' ? Ci(x, y - 4, o.size || 3, o.color)
-        : shape === 'oval' ? E(x, y - 4, 1.8, 4.4, o.color, r * 180)
-        : shape === 'bean' ? E(x, y - 4, 4.4, 3.4, o.color, r * 180)
-        : shape === 'nut' ? P(`M${x - 5} ${y - 4} c0-6 10-6 10-2 c-3 0-6 2-6 6 c-3 0-4-2-4-4z`, o.color)
-        : shape === 'pearl' ? Ci(x, y - 4, 4, o.color)
-        : P(`M${x - 4} ${y - 6} l6 -2 l3 6 l-6 3z`, o.color), 1.3))
-    ];
+    const n = { round: 16, oval: 14, bean: 10, nut: 8, pearl: 10, flake: 12 }[shape];
+    const seed = ([x, y, r]) => fine(shape === 'round' ? Ci(x, y, (o.size || 3) * 1.15, o.color)
+      : shape === 'oval' ? E(x, y, 2, 5, o.color, r * 180)
+      : shape === 'bean' ? E(x, y, 5, 3.8, o.color, r * 180)
+      : shape === 'nut' ? P(`M${x - 6} ${y} c0-7 12-7 12-2 c-3.5 0-7 2.4-7 7 c-3.5 0-5-2.4-5-5z`, o.color)
+      : shape === 'pearl' ? Ci(x, y, 4.6, o.color)
+      : P(`M${x - 4} ${y - 2} l6 -2.4 l3.4 6 l-6.6 3.4z`, o.color), 1.1);
+    return [...dishMound(o.color), ...moundPoints(n, shape.length * 3 + 1).map(seed)];
   },
   star: o => {
     let d = '';
@@ -473,7 +542,7 @@ const ILLO_FORMS = {
   fishcake: o => o.kind === 'kamaboko'
     ? [P('M18 70 c0-26 64-26 64 0z', IC.white), P('M18 70 c0-26 64-26 64 0 c-3 0-4 0-6 0 c-2-20-50-20-52 0z', IC.salmon), P('M14 70 h72 v8 h-72z', IC.tan)]
     : [...[0, 1, 2].map(i => G(`rotate(${-10 + i * 8} 50 50)`, [P(`M22 ${40 + i * 10} h56 c3 0 4 2 4 4 v4 c0 2-1 4-4 4 h-56 c-3 0-4-2-4-4 v-4 c0-2 1-4 4-4z`, illoShade(o.color, i * 0.06))]))],
-  flakes: o => [E(50, 68, 36, 11, IC.cream), ...scatter(22, 50, 56, 24, 12, 41).map(([x, y, r]) => fine(P(`M${x - 5} ${y - 3} l8 -3 l3 5 l-7 4z`, r > 0.5 ? o.color : illoShade(o.color, 0.18)), 1.3))],
+  flakes: o => [...dishMound(o.color), ...moundPoints(12, 41).map(([x, y, r]) => fine(P(`M${x - 6} ${y - 1} l9 -3.6 l3.4 6 l-8.4 4.4z`, r > 0.5 ? o.color : illoShade(o.color, 0.18)), 1.1))],
   sausage: o => [
     ...[[0, 0], [8, 14]].map(([dx, dy]) => G(`translate(${dx} ${dy}) rotate(-20 50 50)`, [
       P('M18 42 h64 a6 7 0 0 1 0 14 h-64 a6 7 0 0 1 0-14z', o.color),

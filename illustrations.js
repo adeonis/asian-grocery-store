@@ -1039,3 +1039,237 @@ function illustrationSvg(entry) {
   }
   return illoCache[cacheKey];
 }
+
+// --- Technique illustrations ------------------------------------------------
+// Each cooking technique is drawn as its equipment in action, from the same
+// plate style as the ingredients. Keyed by technique id.
+const IT = {
+  steel: '#5E605C', iron: '#3A3936', clay: '#8E5A3C', onggi: '#6B4A32', curry: '#C9772E',
+  green: '#7E9A45', broth: '#D9B46A', caramel: '#7A3E1C', oil: '#E2B53E'
+};
+
+const tFlame = (x, y, s = 1) => G(`translate(${x} ${y}) scale(${s})`, [
+  P('M0 0 c-8-4-10-14-3-24 c0 7 4 9 6 4 c3 7 9 9 6 20 c-2 2-7 2-9 0z', IC.orange, { sw: 1.8 }),
+  P('M0 -2 c-3-2-4-7-1-11 c0 3 2 4 3 2 c2 4 3 5 2 9z', IC.yellow, { sw: 1.2, off: 1 })
+]);
+const tSteam = (x, y) => L(`M${x} ${y} c-4-5 4-8 0-13 M${x + 8} ${y + 2} c-4-5 4-8 0-13 M${x + 16} ${y} c-4-5 4-8 0-13`, { width: 1.6, stroke: IC.grey });
+const tWok = (fill, y = 0) => G(`translate(0 ${y})`, [
+  P('M84 46 l14 -6 v4 l-12 7z', IT.iron, { sw: 1.8 }),
+  P('M10 44 h80 c-4 20-20 28-40 28 c-20 0-36-8-40-28z', IT.steel),
+  ...(fill ? [E(50, 44, 38, 5, fill)] : [])
+]);
+const tPot = (fill, { lid = false, color = IT.steel } = {}) => [
+  P('M18 44 h-6 v6 h6z M82 44 h6 v6 h-6z', IT.iron, { sw: 1.8 }),
+  P('M20 38 h60 v38 c0 6-4 10-10 10 h-40 c-6 0-10-4-10-10z', color),
+  ...(lid ? [P('M18 32 h64 v6 h-64z', illoShade(color, 0.15)), P('M44 26 h12 v6 h-12z', IT.iron, { sw: 1.8 })] : [E(50, 38, 30, 5, fill || IT.broth)])
+];
+const tPan = (fill, x = 0, y = 0) => G(`translate(${x} ${y})`, [
+  P('M74 52 l22 -8 v5 l-20 8z', IT.iron, { sw: 1.8 }),
+  P('M14 50 h62 c-2 12-12 18-31 18 c-19 0-29-6-31-18z', IT.iron),
+  E(45, 50, 31, 6, fill || IT.steel)
+]);
+const tDish = (x, y, r, fill, rim = IC.cream) => G(`translate(${x} ${y})`, [Ci(0, 0, r, rim), fine(Ci(0, 0, r * 0.7, fill), 1.4)]);
+const tMortar = (fill, stone = IC.grey) => [
+  G('rotate(28 66 40)', [P('M60 10 h10 c2 0 3 2 3 4 l-2 36 c0 3-3 5-6 5 c-3 0-6-2-6-5 l-2-36 c0-2 1-4 3-4z', illoShade(stone, 0.15))]),
+  P('M20 54 h60 c0 20-12 32-30 32 c-18 0-30-12-30-32z', stone),
+  E(50, 54, 30, 6, fill)
+];
+
+const ILLO_TECHNIQUES = {
+  // China
+  'stir-frying': () => [
+    tFlame(40, 92, 0.7), tFlame(52, 94, 0.9), tFlame(64, 92, 0.7),
+    tWok(IC.brown, 6),
+    ...[[30, 34, IC.red], [44, 24, IC.herb], [58, 30, IC.yellow], [68, 20, IC.salmon]].map(([x, y, c]) => fine(P(`M${x} ${y} l7 -2 l2 5 l-7 3z`, c), 1.3)),
+    L('M24 40 c4-12 14-20 26-22 M62 26 c8 2 14 8 16 16', { width: 1.2, opacity: 0.5 })
+  ],
+  velveting: () => [
+    E(50, 54, 32, 8, IC.cream),
+    ...[[34, 54, -20], [48, 50, 10], [60, 56, -6], [44, 58, 24]].map(([x, y, r]) => G(`rotate(${r} ${x} ${y})`, [P(`M${x - 10} ${y - 3} h20 c2 0 3 1 3 3 c0 2-1 3-3 3 h-20 c-2 0-3-1-3-3 c0-2 1-3 3-3z`, IC.salmon, { sw: 1.5 })])),
+    L('M34 50 c6 4 12-4 18 0 c6 4 10-2 14 2', { width: 2, stroke: ILLO_PAPER }),
+    P('M18 56 h64 c0 16-14 28-32 28 c-18 0-32-12-32-28z', IC.cream),
+    G('translate(70 8)', [P('M0 0 c8 0 12 8 12 16 c0 6-5 10-12 10 c-7 0-12-4-12-10 c0-8 4-16 12-16z', IC.white, { sw: 1.8 })])
+  ],
+  'sauce-building': () => [
+    tDish(30, 40, 15, IC.soy), tDish(68, 36, 13, IC.vinegar), tDish(50, 70, 15, IC.chili),
+    G('rotate(-30 70 74)', [P('M60 72 c0-5 12-5 12 0 c0 4-12 4-12 0z M72 72 h20 v3 h-20z', IC.metal, { sw: 1.6 })])
+  ],
+  'wok-station': () => [
+    P('M10 30 h80 v50 h-80z', IC.tan, { sw: 1.8 }),
+    L('M10 44 h80 M10 64 h80', { width: 0.8, opacity: 0.35 }),
+    tDish(26, 42, 9, IC.white), tDish(50, 42, 9, IC.herb), tDish(74, 42, 9, IC.yellow),
+    tDish(26, 66, 9, IC.soy), tDish(50, 66, 9, IC.chili), tDish(74, 66, 9, IC.salmon)
+  ],
+  'cornstarch-thickening': () => [
+    E(46, 58, 30, 7, IC.white),
+    P('M14 60 h64 c0 16-14 26-32 26 c-18 0-32-10-32-26z', IC.cream),
+    G('rotate(-35 60 40)', [P('M48 18 c0-6 12-6 12 0 v4 c0 5-12 5-12 0z M52 24 h4 v34 h-4z', IC.metal, { sw: 1.6 })]),
+    P('M66 52 c0 6-2 10 0 14 c2-4 0-8 0-14z', IC.white, { sw: 1.4 })
+  ],
+
+  // Japan
+  'dashi-building': () => [
+    ...tPot(IC.gold),
+    G('rotate(-8 40 36)', [P('M30 30 h20 v12 h-20z', IC.seaweed, { sw: 1.6 })]),
+    ...[[56, 36], [64, 38], [60, 33]].map(([x, y]) => fine(P(`M${x} ${y} l6 -2 l2 4 l-6 2z`, IC.pink), 1.2)),
+    tSteam(36, 22)
+  ],
+  'teriyaki-glaze': () => [
+    tPan(IT.iron, 0, 12),
+    P('M24 56 c0-10 12-14 22-12 c10-4 22 0 22 10 c0 8-10 12-22 10 c-12 2-22-2-22-8z', IT.caramel),
+    L('M30 52 c8-4 18-4 28-2', { width: 2, stroke: '#E8C9A0' }),
+    G('rotate(-40 70 24)', [P('M66 6 h6 v24 h-6z', IC.tan, { sw: 1.6 }), P('M64 30 h10 l-1 10 h-8z', IT.caramel, { sw: 1.6 })])
+  ],
+  'tempura-technique': () => [
+    P('M14 70 l12 -40 h48 l12 40z', IC.white, { sw: 1.8 }),
+    L('M22 62 l56 0 M26 50 l48 0 M30 38 l40 0', { width: 0.8, opacity: 0.35 }),
+    ...[[-24, 46, 56], [18, 54, 50]].map(([r, x, y]) => G(`rotate(${r} ${x} ${y})`, [
+      P(`M${x - 22} ${y} c0-6 6-9 12-9 l3 -3 l3 3 l3 -3 l3 3 l3 -3 l3 3 l3 -3 l3 3 c6 0 9 4 9 9 c0 5-4 9-9 9 h-24 c-6 0-12-3-12-9z`, IC.gold),
+      P(`M${x + 20} ${y - 3} l8 -6 l-2 9 l2 9 l-8 -6z`, IC.salmon, { sw: 1.5 })
+    ]))
+  ],
+  'rice-preparation': () => [
+    ...ILLO_FORMS.riceBowl({ color: IC.white, bowl: IC.blue }),
+    L('M58 10 L80 44 M66 8 L84 42', { width: 4.2 }), L('M58 10 L80 44 M66 8 L84 42', { width: 2.2, stroke: IC.red })
+  ],
+  'knife-cuts': () => [
+    G('rotate(-18 50 40)', [P('M14 34 h52 c6 0 10 4 12 10 h-64z', IC.metal), P('M66 36 h24 v6 h-24z', IT.iron, { sw: 1.8 }), L('M18 40 h44', { width: 0.8, opacity: 0.4 })]),
+    ...[0, 1, 2, 3, 4, 5].map(i => G(`rotate(${-6 + i * 3} ${30 + i * 8} 74)`, [P(`M${27 + i * 8} 60 h5 v26 h-5z`, IC.orange, { sw: 1.3, off: 1.2 })]))
+  ],
+
+  // Korea
+  'kimchi-fermentation': () => [
+    P('M30 22 h40 c4 0 6 3 6 6 v4 h-52 v-4 c0-3 2-6 6-6z', illoShade(IT.onggi, 0.12)),
+    P('M26 32 h48 c10 6 14 18 14 30 c0 14-10 24-24 24 h-28 c-14 0-24-10-24-24 c0-12 4-24 14-30z', IT.onggi),
+    L('M20 58 c18 4 42 4 60 0', { width: 1.2, stroke: IC.tan }),
+    P('M36 32 c2-8 10-12 14-10 c4-2 12 2 14 10z', IC.chili, { sw: 1.6 })
+  ],
+  'korean-bbq': () => [
+    Ci(50, 54, 36, IT.iron),
+    Ci(50, 54, 30, IT.steel),
+    L('M24 42 h52 M22 50 h56 M22 58 h56 M24 66 h52 M32 34 v40 M50 26 v56 M68 34 v40', { width: 1.2, stroke: IT.iron }),
+    ...[[38, 46, -20], [58, 50, 15], [44, 62, 8]].map(([x, y, r]) => G(`rotate(${r} ${x} ${y})`, [P(`M${x - 11} ${y - 4} h22 c2 0 3 2 3 4 c0 2-1 4-3 4 h-22 c-2 0-3-2-3-4 c0-2 1-4 3-4z`, IC.brickRed, { sw: 1.5 }), L(`M${x - 6} ${y - 4} v8 M${x + 4} ${y - 4} v8`, { width: 1.2, stroke: IT.iron })])),
+    tFlame(20, 94, 0.5), tFlame(80, 94, 0.5)
+  ],
+  'gochujang-sauces': () => [
+    G('translate(-16 -6) scale(0.62) translate(10 6)', ILLO_FORMS.tub({ color: IC.brickRed, cap: IC.red, label: '고추장' })),
+    tDish(66, 66, 20, IC.chili),
+    G('rotate(30 72 40)', [P('M66 20 c0-5 10-5 10 0 v3 c0 4-10 4-10 0z M69 25 h4 v26 h-4z', IC.metal, { sw: 1.5 })])
+  ],
+  'banchan-philosophy': () => [
+    ...[[24, 30, IC.chili], [50, 26, IC.herb], [76, 30, IC.yellow], [24, 62, IC.tan], [50, 66, IC.deepGreen], [76, 62, IC.salmon]].map(([x, y, c]) => tDish(x, y, 11, c))
+  ],
+  'jjigae-technique': () => [
+    P('M14 84 h72 v4 h-72z', IC.tan, { sw: 1.6 }),
+    P('M16 44 h68 c0 22-12 38-34 38 c-22 0-34-16-34-38z', IT.iron),
+    E(50, 44, 34, 7, IC.chili),
+    ...[[38, 42], [56, 44]].map(([x, y]) => fine(P(`M${x} ${y - 4} h8 v6 h-8z`, IC.white), 1.3)),
+    fine(Ci(66, 41, 2.6, IC.red), 1), fine(Ci(30, 45, 2.2, IC.herb), 1),
+    tSteam(36, 30)
+  ],
+
+  // Thailand
+  'curry-paste': () => tMortar(IC.chili, IC.grey),
+  'flavor-balance': () => [
+    tDish(50, 22, 13, IC.gold), tDish(24, 52, 13, IC.lime), tDish(76, 52, 13, IC.chili), tDish(50, 80, 13, IC.amber),
+    L('M50 38 v26 M38 52 h24', { width: 1.2, opacity: 0.4 })
+  ],
+  'coconut-curry-technique': () => [
+    tDish(44, 54, 34, IT.green),
+    L('M24 54 c6-6 12 4 18-2 c6-6 12 4 18-2 M30 64 c6-4 10 2 16-1', { width: 2.4, stroke: IC.white }),
+    fine(E(36, 44, 3, 5, IC.deepGreen, -30), 1.2), fine(E(52, 66, 3, 5, IC.deepGreen, 20), 1.2), fine(E(58, 46, 5, 2, IC.chili, -20), 1.2),
+    G('translate(64 70)', [P('M0 0 a15 15 0 0 1 30 0z', IC.brown, { sw: 1.8 }), P('M3 0 a12 12 0 0 1 24 0z', IC.white, { sw: 1.2, off: 0 })])
+  ],
+  'nam-prik': () => [
+    E(50, 56, 42, 30, IC.cream),
+    ...[[18, 52, -70, IC.paleGreen], [24, 34, -40, IC.herb], [76, 36, 40, IC.herb], [82, 56, 70, IC.paleGreen], [30, 76, -120, IC.lime], [70, 76, 120, IC.lime]].map(([x, y, r, c]) => G(`rotate(${r} ${x} ${y})`, [P(`M${x - 3} ${y - 9} h6 v18 h-6z`, c, { sw: 1.4, off: 1.2 })])),
+    tDish(50, 56, 16, IC.brickRed, IC.white),
+    ...[[46, 52], [54, 58]].map(([x, y]) => fine(Ci(x, y, 1.8, IC.chili), 0.9))
+  ],
+  'wok-techniques-thai': () => [
+    tFlame(30, 60, 1.3), tFlame(46, 50, 1.6), tFlame(64, 58, 1.2),
+    tWok(null, 18),
+    ...[[30, 54], [64, 50]].map(([x, y]) => fine(E(x, y, 4, 6, IC.deepGreen, 30), 1.2))
+  ],
+
+  // Vietnam
+  'nuoc-cham': () => [
+    tDish(44, 56, 30, IC.amber),
+    ...[[36, 50], [48, 60], [54, 48]].map(([x, y]) => fine(Ci(x, y, 2.6, IC.chili), 1)),
+    ...[[40, 62], [30, 56]].map(([x, y]) => fine(Ci(x, y, 2.2, IC.white), 1)),
+    G('rotate(20 80 28)', [P('M66 28 a14 14 0 0 1 28 0z', IC.lime), L('M70 28 l10 -10 M80 28 v-12 M90 28 l-10 -10', { width: 1, stroke: IC.paleGreen })])
+  ],
+  'pho-broth': () => [
+    ...tPot(IT.broth, { color: IC.metal }),
+    G('translate(42 36) scale(0.22) translate(-50 -52)', ILLO_FORMS.star({ color: IC.brown })),
+    fine(Ci(60, 38, 3, IC.tan), 1.2),
+    G('translate(62 72)', [P('M0 16 a16 16 0 0 1 32 0z', IT.iron, { sw: 1.8 }), P('M4 16 a12 12 0 0 1 24 0z', IC.lilac, { sw: 1.3, off: 0 }), L('M9 16 a7 7 0 0 1 14 0', { width: 1.2, stroke: IC.white })]),
+    tSteam(34, 26)
+  ],
+  'fresh-rolls': () => [
+    ...[[34, 58, -14], [64, 50, -14]].map(([x, y, r]) => G(`rotate(${r} ${x} ${y})`, [
+      P(`M${x - 22} ${y - 10} h44 a8 10 0 0 1 0 20 h-44 a8 10 0 0 1 0-20z`, IC.clear),
+      fine(E(x - 6, y - 2, 6, 4, IC.salmon), 1), fine(E(x + 8, y - 1, 6, 4, IC.salmon), 1),
+      L(`M${x - 18} ${y + 4} c8-4 16 4 24 0 c6-3 10 2 14 0`, { width: 2.2, stroke: IC.herb })
+    ]))
+  ],
+  caramelization: () => [
+    E(50, 40, 32, 6, IT.caramel),
+    fine(E(40, 39, 7, 5, IC.white), 1.3), fine(E(58, 40, 7, 5, IC.white), 1.3),
+    fine(E(40, 38, 3, 2.6, IC.yellow), 0.9), fine(E(58, 39, 3, 2.6, IC.yellow), 0.9),
+    P('M16 42 h68 c2 20-12 40-34 40 c-22 0-36-20-34-40z', IT.clay),
+    L('M22 54 c16 4 40 4 56 0', { width: 1.4, stroke: IC.tan }),
+    P('M10 40 h8 v-6 h-8z M82 40 h8 v-6 h-8z', IT.clay, { sw: 1.6 }),
+    G('rotate(14 74 18)', [P('M58 14 h32 v6 h-32z', illoShade(IT.clay, 0.15), { sw: 1.6 })])
+  ],
+  'herb-plate': () => [
+    E(50, 58, 40, 24, IC.cream),
+    E(50, 58, 32, 18, IC.white),
+    ...[[30, 54, -30, IC.herb], [40, 48, -10, IC.deepGreen], [54, 50, 10, IC.herb], [44, 64, 20, IC.paleGreen]].map(([x, y, r, c]) => leafAt(x, y + 8, r, 18, 6, c, { sw: 1.4 })),
+    G('translate(64 56)', [P('M0 6 a10 10 0 0 1 20 0z', IC.lime, { sw: 1.6 })]),
+    fine(E(70, 70, 6, 2.4, IC.chili, -20), 1.2)
+  ],
+
+  // India
+  tadka: () => [
+    P('M70 52 l26 -12 v5 l-24 12z', IT.iron, { sw: 1.8 }),
+    P('M22 50 h50 c0 14-10 22-25 22 c-15 0-25-8-25-22z', IT.iron),
+    E(47, 50, 25, 5, IT.oil),
+    ...[[38, 49], [46, 51], [54, 48], [42, 47]].map(([x, y]) => fine(Ci(x, y, 2, IC.darkBrown), 0.9)),
+    fine(E(56, 51, 5, 2, IC.deepGreen, -10), 1),
+    ...[[34, 34], [48, 26], [60, 32], [42, 18]].map(([x, y]) => fine(Ci(x, y, 1.8, IC.darkBrown), 0.9)),
+    L('M30 40 l-4 -4 M64 40 l4 -4 M47 38 v-4', { width: 1.2 })
+  ],
+  'curry-base': () => [
+    L('M14 46 c-8-2-10 10 0 10 M86 46 c8-2 10 10 0 10', { width: 5 }), L('M14 46 c-8-2-10 10 0 10 M86 46 c8-2 10 10 0 10', { width: 2.6, stroke: IT.steel }),
+    P('M12 44 h76 c-2 20-18 32-38 32 c-20 0-36-12-38-32z', IT.iron),
+    E(50, 44, 36, 6, IC.brickRed),
+    ...[[34, 43], [46, 45], [58, 42], [66, 44]].map(([x, y], i) => fine(P(`M${x - 4} ${y} c0-3 8-3 8 0 c0 2-8 2-8 0z`, i % 2 ? IC.red : IC.lilac), 1.1)),
+    ...[[40, 42], [62, 46]].map(([x, y]) => fine(E(x, y, 3, 1.4, IC.herb, 20), 0.9))
+  ],
+  'spice-toasting': () => [
+    tPan(IT.steel, 0, 12),
+    G('translate(28 60) scale(0.22) translate(-50 -52)', ILLO_FORMS.star({ color: IC.brown })),
+    G('rotate(-12 50 62)', [P('M40 60 h20 a2 3 0 0 1 0 6 h-20 a2 3 0 0 1 0-6z', IC.brown, { sw: 1.4 })]),
+    ...[[58, 56], [62, 60], [66, 57], [54, 64]].map(([x, y]) => fine(E(x, y, 1.6, 3, IC.tan, 30), 0.9)),
+    L('M30 40 c-4-6 4-10 0-16 M46 36 c-4-6 4-10 0-16 M62 40 c-4-6 4-10 0-16', { width: 1.6, stroke: IC.grey })
+  ],
+  'masala-formulas': () => [
+    Ci(50, 52, 38, IC.metal),
+    ...[[50, 52, IC.yellow], [50, 28, IC.chili], [71, 40, IC.brown], [71, 64, IC.darkBrown], [50, 76, IC.tan], [29, 64, IC.mustard], [29, 40, IC.paleGreen]].map(([x, y, c]) => tDish(x, y, 10, c, IC.white))
+  ],
+  'rice-techniques': () => [
+    P('M14 46 c0-6 72-6 72 0 v4 h-72z', IC.white, { sw: 1.6 }),
+    ...tPot(null, { lid: true, color: IT.clay }),
+    ...scatter(8, 72, 86, 12, 3, 9).map(([x, y, r]) => fine(E(x, y, 1.4, 3.6, IC.white, r * 180 + 60), 0.9))
+  ]
+};
+
+const techniqueCache = {};
+function techniqueSvg(id, name = '') {
+  if (!techniqueCache[id]) {
+    const draw = ILLO_TECHNIQUES[id] || ILLO_TECHNIQUES['stir-frying'];
+    techniqueCache[id] = `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="${name.replace(/"/g, '&quot;')}">${illoRender(draw())}</svg>`;
+  }
+  return techniqueCache[id];
+}

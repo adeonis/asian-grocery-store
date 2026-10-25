@@ -9645,10 +9645,15 @@
       return allIngredientEntries.find(e => e.name.toLowerCase().includes(q) || q.includes(e.name.toLowerCase())) || null;
     }
 
-    // Specimen illustration for an ingredient (drawn by illustrations.js)
+    // Specimen illustrations (drawn by illustrations.js)
+    const IMAGE_SIZES = { small: 'w-12 h-12', medium: 'w-16 h-16', large: 'w-32 h-32 md:w-40 md:h-40' };
+
     function renderImage(entry, size = 'medium', category = '') {
-      const sizes = { small: 'w-12 h-12', medium: 'w-16 h-16', large: 'w-32 h-32 md:w-40 md:h-40' };
-      return `<div class="${sizes[size] || sizes.medium} flex-shrink-0 bg-warm-100 border border-warm-300">${illustrationSvg({ ...entry, category: entry.category || category })}</div>`;
+      return `<div class="${IMAGE_SIZES[size] || IMAGE_SIZES.medium} flex-shrink-0 bg-warm-100 border border-warm-300">${illustrationSvg({ ...entry, category: entry.category || category })}</div>`;
+    }
+
+    function renderTechniqueImage(technique, size = 'small') {
+      return `<div class="${IMAGE_SIZES[size] || IMAGE_SIZES.small} flex-shrink-0 bg-warm-100 border border-warm-300">${techniqueSvg(technique.id, technique.name)}</div>`;
     }
 
     // Search functionality
@@ -9741,7 +9746,7 @@
                   ${result._type === 'dish'
                     ? '<div class="w-12 h-12 flex-shrink-0 bg-accent/10 text-accent flex items-center justify-center text-xl">🍽</div>'
                     : result._type === 'technique'
-                    ? '<div class="w-12 h-12 flex-shrink-0 bg-warm-900 text-warm-50 flex items-center justify-center text-xl">🔥</div>'
+                    ? renderTechniqueImage(result)
                     : renderImage(result, 'small')}
                   <div class="flex-1 min-w-0">
                     <div class="font-medium text-warm-900">${!result._type && favorites.has(result.id) ? '<span class="text-yellow-500 mr-1">★</span>' : ''}${result.name}</div>
@@ -10547,9 +10552,7 @@
                     class="bg-cream hover:bg-warm-200 p-5 transition-colors text-left group"
                   >
                     <div class="flex items-start gap-4">
-                      <div class="w-12 h-12 bg-accent text-white flex items-center justify-center text-xl flex-shrink-0 font-bold">
-                        技
-                      </div>
+                      ${renderTechniqueImage(technique)}
                       <div class="flex-1 min-w-0">
                         <h3 class="font-semibold text-warm-900 group-hover:text-accent transition-colors">${technique.name}</h3>
                         ${technique.native ? `<div class="text-sm text-warm-500 font-medium">${technique.native}</div>` : ''}
@@ -10917,16 +10920,19 @@
       return `
         <main class="max-w-5xl mx-auto px-6 md:px-12 py-8">
           <!-- Hero Section -->
-          <div class="mb-12 pb-12 border-b border-warm-300">
-            <div class="flex items-center gap-2 mb-3">
-              <span class="text-2xl">${country.flag}</span>
-              <span class="text-warm-500 text-sm uppercase tracking-wide font-medium">${country.name} Technique</span>
+          <div class="grid md:grid-cols-[auto,1fr] gap-8 md:gap-12 mb-12 pb-12 border-b border-warm-300">
+            ${renderTechniqueImage(technique, 'large')}
+            <div>
+              <div class="flex items-center gap-2 mb-3">
+                <span class="text-2xl">${country.flag}</span>
+                <span class="text-warm-500 text-sm uppercase tracking-wide font-medium">${country.name} Technique</span>
+              </div>
+              <h1 class="text-4xl md:text-5xl font-bold text-warm-900 tracking-tight mb-2">${technique.name}</h1>
+              ${technique.native ? `<div class="text-2xl text-warm-600 font-medium mb-1">${technique.native}</div>` : ''}
+              ${technique.pronunciation ? `<div class="text-warm-500 mb-6">${technique.pronunciation}</div>` : ''}
+              <p class="text-xl text-warm-700 leading-relaxed mb-4">${technique.subtitle}</p>
+              <p class="text-warm-600 leading-relaxed max-w-3xl">${technique.intro}</p>
             </div>
-            <h1 class="text-4xl md:text-5xl font-bold text-warm-900 tracking-tight mb-2">${technique.name}</h1>
-            ${technique.native ? `<div class="text-2xl text-warm-600 font-medium mb-1">${technique.native}</div>` : ''}
-            ${technique.pronunciation ? `<div class="text-warm-500 mb-6">${technique.pronunciation}</div>` : ''}
-            <p class="text-xl text-warm-700 leading-relaxed mb-4">${technique.subtitle}</p>
-            <p class="text-warm-600 leading-relaxed max-w-3xl">${technique.intro}</p>
           </div>
 
           <!-- Main Diagram -->

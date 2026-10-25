@@ -52,6 +52,17 @@
       border-radius: 3px;
     }
     .fg-rule { border-bottom: 1px dashed #B8AD93; }
+    /* Hairline grids: each cell draws its own 1px rule into the gap, so an
+       unfilled last row stays paper-colored instead of showing a solid block */
+    .fg-grid { overflow: hidden; }
+    .fg-grid > * { box-shadow: 0 0 0 1px #D8CDB2; }
+    /* Home tabs: fade the right edge while more tabs are off-screen */
+    .tab-scroller { scrollbar-width: none; }
+    .tab-scroller::-webkit-scrollbar { display: none; }
+    .tab-scroller.has-more {
+      -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 48px), transparent);
+      mask-image: linear-gradient(to right, #000 calc(100% - 48px), transparent);
+    }
     @media print {
       header, #sidebar, #sidebar-backdrop, .no-print { display: none !important; }
       body { background: white !important; }
@@ -10410,7 +10421,7 @@
         <!-- Tab Navigation -->
         <div class="border-b border-warm-300">
           <div class="max-w-7xl mx-auto px-6 md:px-12">
-            <nav class="flex gap-0 overflow-x-auto -mb-px" style="scrollbar-width: none;">
+            <nav id="home-tabs" onscroll="updateTabFade(this)" class="tab-scroller flex gap-0 overflow-x-auto -mb-px -mx-3 sm:mx-0">
               ${[
                 { id: 'start', label: 'Start Here' },
                 { id: 'dishes', label: 'Find a Dish' },
@@ -10421,7 +10432,7 @@
               ].map(tab => `
                 <button
                   onclick="switchHomeTab('${tab.id}')"
-                  class="px-5 py-4 text-sm font-medium tracking-wide whitespace-nowrap transition-colors ${homeTab === tab.id
+                  class="px-3 sm:px-5 py-4 text-sm font-medium tracking-wide whitespace-nowrap transition-colors ${homeTab === tab.id
                     ? 'text-accent border-b-2 border-accent'
                     : 'text-warm-500 hover:text-warm-800 border-b-2 border-transparent'}"
                 >${tab.label}</button>
@@ -10488,7 +10499,7 @@
             <h2 class="text-sm font-medium text-warm-600 uppercase tracking-widest">Your Starter Pantry</h2>
           </div>
           <p class="text-warm-600 mb-8 max-w-2xl">Buy these 10 ingredients and you can make every recipe on this page — plus dozens more. This is your foundation.</p>
-          <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-px bg-warm-300">
+          <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-px fg-grid">
             ${guide.pantry.map((item, idx) => `
               <div class="bg-cream p-5">
                 <div class="flex items-start gap-3">
@@ -10731,7 +10742,7 @@
           <section class="mb-14">
             <h2 class="text-sm font-medium text-warm-600 uppercase tracking-widest mb-2">What to Buy at the Asian Grocery</h2>
             <p class="text-warm-600 mb-6">Tap any ingredient to learn what it looks like on the shelf, which brand to buy, and what else it can do.</p>
-            <div class="grid sm:grid-cols-2 gap-px bg-warm-300 mb-6">
+            <div class="grid sm:grid-cols-2 gap-px fg-grid mb-6">
               ${fromStore.map(({ name, match }) => `
                 <button onclick="selectIngredientById('${match.id}', '${match.countryKey}')"
                   class="bg-cream p-4 text-left hover:bg-warm-100 transition-colors flex items-start gap-3 group">
@@ -10915,7 +10926,7 @@
               <h2 class="text-sm font-medium text-warm-600 uppercase tracking-widest mb-6 pb-3 border-b border-warm-300">
                 Cooking Techniques
               </h2>
-              <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-px bg-warm-300">
+              <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-px fg-grid">
                 ${techniqueDatabase[selectedCountry].techniques.map(technique => `
                   <button
                     onclick="selectTechnique('${technique.id}', '${selectedCountry}')"
@@ -10988,7 +10999,7 @@
               <h2 class="text-sm font-medium text-warm-600 uppercase tracking-widest mb-6 pb-3 border-b border-warm-300">
                 ${categoryName}
               </h2>
-              <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-px bg-warm-300">
+              <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-px fg-grid">
                 ${(showPantryOnly ? ingredients.filter(i => favorites.has(i.id)) : ingredients).map(ingredient => `
                   <div class="bg-cream hover:bg-warm-200 transition-colors relative group">
                     <button
@@ -11166,7 +11177,7 @@
                   <h2 class="text-sm font-medium text-warm-600 uppercase tracking-widest">Keep Exploring</h2>
                   <button onclick="goToRandomIngredient()" class="text-sm text-accent hover:underline">Surprise me →</button>
                 </div>
-                <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-px bg-warm-300">
+                <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-px fg-grid">
                   ${related.map(e => `
                     <button onclick="selectIngredientById('${e.id}', '${e.countryKey}')"
                       class="bg-cream p-4 text-left hover:bg-warm-100 transition-colors flex items-start gap-3">
@@ -11199,7 +11210,7 @@
           return `
             <div class="mb-12">
               <h3 class="text-sm font-medium text-warm-600 uppercase tracking-widest mb-6">${diagram.title}</h3>
-              <div class="grid gap-px bg-warm-300">
+              <div class="grid gap-px fg-grid">
                 ${diagram.steps.map((step, idx) => `
                   <div class="bg-cream p-5 flex items-start gap-4">
                     <div class="w-12 h-12 bg-accent text-white flex items-center justify-center text-2xl flex-shrink-0">
@@ -11221,7 +11232,7 @@
             <div class="mb-12">
               <h3 class="text-sm font-medium text-warm-600 uppercase tracking-widest mb-6">${diagram.title}</h3>
               <div class="border-2 border-warm-400">
-                <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-px bg-warm-300">
+                <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-px fg-grid">
                   ${diagram.components.map(comp => `
                     <div class="bg-cream p-5">
                       <div class="flex items-baseline justify-between mb-1">
@@ -11639,6 +11650,18 @@
       `;
       window.scrollTo(0, 0);
       updateShoppingBadge();
+
+      // Keep the active home tab visible on narrow screens
+      const tabs = document.getElementById('home-tabs');
+      if (tabs) {
+        const active = tabs.querySelector('.text-accent');
+        if (active) tabs.scrollLeft = active.offsetLeft - tabs.offsetLeft - 12;
+        updateTabFade(tabs);
+      }
+    }
+
+    function updateTabFade(nav) {
+      nav.classList.toggle('has-more', nav.scrollLeft + nav.clientWidth < nav.scrollWidth - 4);
     }
 
     // --- Router ---

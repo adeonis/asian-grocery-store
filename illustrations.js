@@ -259,7 +259,8 @@ const ILLO_FORMS = {
     }
     return parts;
   },
-  greens: o => { // bok choy and other leafy stems
+  greens: o => { // bok choy by default; o.kind picks another leafy green
+    if (o.kind) return ILLO_GREENS[o.kind](o);
     const leaf = r => G(`rotate(${r} 50 88)`, [
       E(50, 38, 13, 24, o.color),
       P('M45 52 c0 16 2 28 5 36 c3-8 5-20 5-36z', o.stem || IC.paleGreen),
@@ -510,6 +511,64 @@ const ILLO_FORMS = {
   ]))
 };
 
+// Leafy greens, each drawn from its shelf silhouette so they don't blur together
+const stem = (d, color, w = 4) => [L(d, { width: w + 2.4 }), L(d, { width: w, stroke: color })];
+const tie = () => P('M44 74 h12 v7 h-12z', IC.tan, { sw: 1.6 });
+
+const ILLO_GREENS = {
+  // Gai lan: thick pale stems, broad blue-green leaves, white flower buds
+  gailan: o => [
+    ...stem('M48 90 C46 70 40 50 36 30 M50 90 C50 64 50 42 52 20 M52 90 C56 70 62 52 66 32', IC.paleGreen, 5),
+    E(28, 54, 11, 18, o.color, -30), E(72, 56, 11, 18, o.color, 30), E(44, 42, 9, 15, illoShade(o.color, 0.12), -10),
+    L('M22 64 L34 44 M78 66 L66 46 M42 54 L46 30', { width: 1.2, stroke: IC.paleGreen }),
+    ...[[36, 26], [52, 16], [66, 28]].flatMap(([x, y]) => [fine(Ci(x - 3, y + 1, 3, IC.paleGreen)), fine(Ci(x + 3, y + 1, 3, IC.paleGreen)), fine(Ci(x, y - 3, 3.2, IC.white))]),
+    tie()
+  ],
+  // Choy sum: slim stems, narrow oval leaves, little yellow flowers on top
+  choysum: o => [
+    ...stem('M48 90 C44 66 38 44 34 22 M50 90 C50 64 50 40 50 14 M52 90 C56 66 62 44 66 24', IC.paleGreen, 3),
+    E(32, 58, 7, 14, o.color, -28), E(68, 58, 7, 14, o.color, 28), E(40, 40, 6, 12, illoShade(o.color, -0.1), -14), E(60, 42, 6, 12, illoShade(o.color, -0.1), 14),
+    ...[[34, 18], [50, 10], [66, 20]].flatMap(([x, y]) => [fine(Ci(x - 3, y, 2.6, IC.yellow)), fine(Ci(x + 3, y, 2.6, IC.yellow)), fine(Ci(x, y - 4, 2.6, IC.yellow))]),
+    tie()
+  ],
+  // Water spinach (kangkong / ong choy): long hollow stems, arrow-shaped leaves
+  kangkong: o => {
+    const arrow = (x, y, r) => G(`translate(${x} ${y}) rotate(${r})`, [P('M0 -17 C6 -9 7 -1 6 5 L1.5 1.5 L0 6 L-1.5 1.5 L-6 5 C-7 -1 -6 -9 0 -17z', o.color, { sw: 1.8 })]);
+    const stems = 'M46 90 C42 68 32 48 26 30 M50 90 C50 66 49 46 48 24 M54 90 C58 68 66 50 74 32';
+    return [
+      ...stem(stems, IC.paleGreen, 2.6),
+      arrow(26, 28, -24), arrow(48, 22, -4), arrow(74, 30, 26),
+      arrow(30, 52, -58), arrow(68, 54, 58), arrow(40, 40, -36), arrow(60, 42, 36),
+      tie()
+    ];
+  },
+  // Korean spinach (sigeumchi): spoon-shaped leaves fanning from a pink root
+  spinach: o => [
+    ...[-50, -30, -10, 10, 30, 50].map((r, i) => G(`rotate(${r} 50 78)`, [
+      L('M50 78 V50', { width: 2.4, stroke: IC.paleGreen }),
+      E(50, 38, 9, 14, i % 2 ? o.color : illoShade(o.color, 0.1)),
+      L('M50 27 V50', { width: 1, stroke: IC.paleGreen })
+    ])),
+    P('M42 76 c2-6 14-6 16 0 l-6 14 h-4z', IC.pink),
+    L('M48 90 l-2 6 M50 90 v6 M52 90 l2 6', { width: 1.2 })
+  ],
+  // Taiwanese mustard greens: big ruffled leaves with thick pale ribs
+  mustard: o => {
+    const leaf = (t, c) => G(t, [
+      P('M50 88 c-14-6-28-20-30-40 c-2-6 2-8 4-12 c-2-6 4-10 8-12 c2-6 10-8 14-6 c4-4 12-4 16 0 c6 0 10 6 10 10 c6 4 6 10 4 14 c4 6 2 10 0 14 c-4 16-14 26-26 32z', c),
+      P('M46 88 c0-20 2-44 4-64 c2 20 4 44 4 64z', IC.cream, { sw: 1.6 }),
+      L('M50 50 l-16-10 M50 62 l-18-8 M51 50 l16-10 M51 62 l18-8', { width: 1.2, stroke: IC.cream })
+    ]);
+    return [leaf('rotate(-18 50 88)', illoShade(o.color, -0.08)), leaf('rotate(16 50 88)', o.color)];
+  },
+  // Fernbrake (gosari): brown stems ending in curled fiddleheads
+  gosari: o => {
+    const d = [[30, -10], [42, -4], [54, 4], [66, 10]].map(([x, dx], i) =>
+      `M${x + 10} 90 C${x + 8} 66 ${x + dx} 50 ${x + dx} ${28 + (i % 2) * 8} c0-8 10-8 10 0 c0 5-6 5-6 0`).join(' ');
+    return [...stem(d, o.color, 3.2), tie()];
+  }
+};
+
 // --- Ingredient → form rules ------------------------------------------------
 // First match wins. Patterns are tested against the English name, so they can
 // be as narrow as one ingredient; anything unmatched falls back by category.
@@ -673,7 +732,12 @@ const ILLO_RULES = [
   [/cilantro|coriander/i, 'herbs', { color: IC.herb, leaf: 'frilly' }],
   [/thai basil/i, 'herbs', { color: IC.deepGreen, cap: IC.purple }],
   [/basil|mint/i, 'herbs', { color: IC.herb }],
-  [/kangkong|water spinach|spinach|choy sum|gai lan|mustard green|fernbrake|gosari/i, 'herbs', { color: IC.deepGreen, cap: IC.tan }],
+  [/kangkong|water spinach|ong choy/i, 'greens', { kind: 'kangkong', color: IC.deepGreen }],
+  [/spinach|sigeumchi/i, 'greens', { kind: 'spinach', color: IC.deepGreen }],
+  [/choy sum/i, 'greens', { kind: 'choysum', color: IC.herb }],
+  [/gai lan|chinese broccoli/i, 'greens', { kind: 'gailan', color: '#4A6B4F' }],
+  [/mustard green/i, 'greens', { kind: 'mustard', color: '#7E9A45' }],
+  [/fernbrake|gosari/i, 'greens', { kind: 'gosari', color: IC.brown }],
   [/bok choy/i, 'greens', { color: IC.deepGreen, stem: IC.white }],
   [/napa|cabbage|baechu/i, 'cabbage', { color: IC.paleGreen, stem: IC.cream }],
   [/bean sprout/i, 'sprouts', { color: IC.white }],

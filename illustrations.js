@@ -24,7 +24,7 @@ const E = (cx, cy, rx, ry, fill, rot) => ({
   tag: 'ellipse', attrs: { cx, cy, rx, ry, ...(rot ? { transform: `rotate(${rot} ${cx} ${cy})` } : {}) }, fill
 });
 const Ci = (cx, cy, r, fill) => ({ tag: 'circle', attrs: { cx, cy, r }, fill });
-const fine = (part, sw = 1.2) => ({ ...part, sw });
+const fine = (part, sw = 1.2) => ({ ...part, sw, off: 1.2 }); // small parts get a lighter line and a tighter plate offset
 const L = (d, opts = {}) => ({ line: d, ...opts });
 const T = (text, x, y, size) => ({ text, x, y, size });
 const G = (transform, parts) => ({ group: transform, parts });
@@ -45,7 +45,8 @@ function illoRender(parts) {
     const a = illoAttrs(p.attrs);
     if (p.noStroke) return `<${p.tag} ${a} fill="${p.fill}"/>`; // specks and pores: no plate offset
     const knock = `<${p.tag} ${a} fill="${ILLO_PAPER}"/>`;
-    const color = p.fill ? `<g transform="translate(${ILLO_OFFSET} ${ILLO_OFFSET})"><${p.tag} ${a} fill="${p.fill}"/></g>` : '';
+    const off = p.off ?? ILLO_OFFSET;
+    const color = p.fill ? `<g transform="translate(${off} ${off})"><${p.tag} ${a} fill="${p.fill}"/></g>` : '';
     const outline = `<${p.tag} ${a} fill="none" stroke="${ILLO_INK}" stroke-width="${p.sw || 2.4}" stroke-linejoin="round"/>`;
     return knock + color + outline;
   }).join('');
@@ -235,6 +236,7 @@ const ILLO_FORMS = {
 
   // Produce
   herbs: o => {
+    if (o.kind) return ILLO_HERBS[o.kind](o);
     const leaf = o.leaf || 'round';
     const tips = [[30, 30, -30], [40, 22, -15], [52, 18, 0], [62, 24, 15], [70, 34, 30], [46, 34, -8], [58, 36, 10]];
     const stems = tips.map(([x, y]) => `M50 86 Q${(50 + x) / 2} ${(86 + y) / 2 + 6} ${x} ${y + 6}`).join(' ');
@@ -569,6 +571,161 @@ const ILLO_GREENS = {
   }
 };
 
+// --- Leafy herbs ------------------------------------------------------------
+// Leaf outline pointing up from (0,0) to (0,-len). teeth > 0 gives a serrated
+// edge; tip < 1 makes a blunter, rounder leaf.
+function leafPath(len, w, { teeth = 0, tip = 1 } = {}) {
+  const n = teeth ? teeth * 2 : 16;
+  const half = t => w * Math.pow(Math.sin(Math.PI * Math.pow(t, 0.85)), 0.8) * (1 - 0.35 * t * tip);
+  const right = [], left = [];
+  for (let i = 1; i < n; i++) {
+    const t = i / n, notch = teeth && i % 2 ? 0.8 : 1;
+    right.push([half(t) * notch, -len * t]);
+  }
+  right.forEach(([x, y]) => left.unshift([-x, y]));
+  const pts = [[0, 0], ...right, [0, -len], ...left];
+  return 'M' + pts.map(([x, y]) => `${x.toFixed(1)} ${y.toFixed(1)}`).join(' L') + 'z';
+}
+
+function leafAt(x, y, rot, len, w, color, opts = {}) {
+  return G(`translate(${x.toFixed(1)} ${y.toFixed(1)}) rotate(${rot.toFixed(1)})`, [
+    P(leafPath(len, w, opts), color, { sw: opts.sw || (len < 30 ? 1.4 : 1.8), off: len < 30 ? 1.3 : undefined }),
+    ...(opts.rib === false ? [] : [L(`M0 -1 V${(-len * 0.8).toFixed(1)}`, { width: len < 30 ? 0.7 : 0.9, stroke: opts.rib || IC.paleGreen })]),
+    ...(opts.mark || [])
+  ]);
+}
+
+// A point and heading (degrees, 0 = up) along a cubic stem
+function stemAt([p0, p1, p2, p3], t) {
+  const u = 1 - t;
+  const pt = i => u * u * u * p0[i] + 3 * u * u * t * p1[i] + 3 * u * t * t * p2[i] + t * t * t * p3[i];
+  const d = i => 3 * u * u * (p1[i] - p0[i]) + 6 * u * t * (p2[i] - p1[i]) + 3 * t * t * (p3[i] - p2[i]);
+  return [pt(0), pt(1), Math.atan2(d(0), -d(1)) * 180 / Math.PI];
+}
+const cubic = c => `M${c[0]} C${c[1]} ${c[2]} ${c[3]}`;
+
+// A stem with leaf pairs (or alternating leaves) along it
+function sprig(c, { stem: stemColor, width = 2.6, at, len, w, color, spread = 50, alternate = false, leaf = {} }) {
+  const leaves = at.flatMap((t, i) => {
+    const [x, y, a] = stemAt(c, t);
+    const k = 1 - 0.25 * t; // leaves shrink toward the tip
+    const sides = alternate ? [i % 2 ? 1 : -1] : [-1, 1];
+    return sides.map(s => leafAt(x, y, a + s * spread, len * k, w * k, typeof color === 'function' ? color(i, s) : color, leaf));
+  });
+  return [...stem(cubic(c), stemColor, width), ...leaves];
+}
+
+const ILLO_HERBS = {
+  // Thai basil: glossy pointed leaves on purple stems, purple flower spikes
+  thaiBasil: o => {
+    const stems = [[[50, 92], [46, 72], [34, 52], [26, 36]], [[50, 92], [52, 68], [54, 46], [56, 28]], [[50, 92], [58, 76], [70, 62], [78, 48]]];
+    const spike = c => { const [x, y, a] = stemAt(c, 1); return G(`translate(${x} ${y}) rotate(${a})`, [0, 1, 2, 3].map(i => fine(E(0, -3 - i * 5, 4.4 - i * 0.7, 2.6, i % 2 ? IC.lilac : IC.purple), 1.3))); };
+    return [
+      ...stems.flatMap(c => sprig(c, { stem: IC.purple, at: [0.35, 0.6, 0.85], len: 17, w: 7, color: o.color, spread: 58, leaf: { rib: IC.lilac } })),
+      ...stems.slice(0, 2).map(spike)
+    ];
+  },
+  // Holy basil: small toothed leaves, many pairs, slender green flower spikes
+  holyBasil: o => {
+    const stems = [[[48, 92], [44, 70], [34, 52], [26, 34]], [[50, 92], [50, 66], [50, 42], [50, 20]], [[52, 92], [58, 72], [66, 54], [74, 36]]];
+    const spike = c => { const [x, y, a] = stemAt(c, 1); return G(`translate(${x} ${y}) rotate(${a})`, [L('M0 0 V-16', { width: 1.4, stroke: IC.paleGreen }), ...[0, 1, 2, 3, 4].map(i => fine(Ci(i % 2 ? 2 : -2, -3 - i * 3.4, 2.1, i < 2 ? IC.purple : IC.lilac), 0.9))]); };
+    return [
+      ...stems.flatMap(c => sprig(c, { stem: IC.brickRed, width: 2, at: [0.3, 0.58, 0.84], len: 13, w: 6, color: (i, s) => (i + (s > 0 ? 1 : 0)) % 2 ? o.color : '#6E6A44', spread: 62, leaf: { teeth: 4, sw: 1.5 } })),
+      ...stems.map(spike)
+    ];
+  },
+  // Vietnamese mint (rau răm): narrow lance leaves, each with a dark chevron
+  vietMint: o => {
+    const chevron = [L('M-3.4 -11 L0 -7 L3.4 -11', { width: 2.2, stroke: IC.brickRed })];
+    const stems = [[[46, 92], [42, 70], [32, 50], [24, 30]], [[50, 92], [52, 66], [50, 40], [52, 14]], [[54, 92], [60, 72], [70, 54], [78, 36]]];
+    return stems.flatMap(c => sprig(c, { stem: IC.brickRed, width: 2, at: [0.3, 0.52, 0.74, 0.95], len: 23, w: 6, color: o.color, spread: 42, alternate: true, leaf: { mark: chevron, tip: 1.3, rib: false } }));
+  },
+  // Lao mint: stacked pairs of round, wrinkled, toothed leaves
+  laoMint: o => {
+    const veins = [L('M0 -4 l-3 -2 M0 -7 l3 -2 M0 -9 l-2.6 -1.6', { width: 0.8, stroke: IC.paleGreen })];
+    const stems = [[[44, 92], [42, 68], [36, 46], [32, 22]], [[56, 92], [58, 70], [62, 50], [66, 28]]];
+    return stems.flatMap(c => [
+      ...sprig(c, { stem: IC.paleGreen, width: 3, at: [0.22, 0.48, 0.74, 1], len: 14, w: 9, color: (i, s) => s > 0 ? o.color : illoShade(o.color, -0.1), spread: 70, leaf: { teeth: 7, tip: 0.4, mark: veins } })
+    ]);
+  },
+  // Lao dill: feathery thread-like fronds and a yellow umbrella of flowers
+  laoDill: o => {
+    const frond = (c, n) => {
+      const lines = [];
+      for (let i = 1; i <= n; i++) {
+        const [x, y, a] = stemAt(c, i / (n + 1));
+        const r = a * Math.PI / 180, l = 10 - i * 0.6;
+        for (const s of [-1, 1]) {
+          const b = r + s * 1.0;
+          lines.push(`M${x.toFixed(1)} ${y.toFixed(1)} l${(Math.sin(b) * l).toFixed(1)} ${(-Math.cos(b) * l).toFixed(1)}`);
+        }
+      }
+      return [L(cubic(c), { width: 1.6, stroke: o.color }), L(lines.join(' '), { width: 1.1, stroke: o.color })];
+    };
+    const umbel = [];
+    for (let i = 0; i < 7; i++) {
+      const a = (-60 + i * 20) * Math.PI / 180, ex = 50 + Math.sin(a) * 16, ey = 26 - Math.cos(a) * 12;
+      umbel.push(L(`M50 30 L${ex.toFixed(1)} ${ey.toFixed(1)}`, { width: 1.1, stroke: o.color }), fine(Ci(ex, ey, 2.4, IC.yellow), 1));
+    }
+    return [
+      ...stem('M50 92 C50 70 50 50 50 30', IC.paleGreen, 2.6),
+      ...frond([[50, 86], [42, 82], [30, 78], [16, 70]], 6),
+      ...frond([[50, 84], [58, 80], [70, 76], [84, 68]], 6),
+      ...frond([[50, 76], [40, 70], [28, 62], [18, 48]], 7),
+      ...frond([[50, 70], [60, 64], [72, 56], [82, 42]], 7),
+      ...frond([[50, 60], [42, 56], [34, 50], [28, 40]], 5),
+      ...frond([[50, 54], [58, 50], [66, 44], [72, 34]], 5),
+      ...umbel
+    ];
+  },
+  // Cilantro: lobed flat leaves on fine stems, sold with white roots attached
+  cilantro: o => {
+    const lobed = (x, y, r, rot) => {
+      const pts = [];
+      for (let i = 0; i < 72; i++) { // three rounded lobes, each softly scalloped
+        const t = (i / 72) * Math.PI * 2;
+        const rr = r * (0.76 + 0.24 * Math.cos(3 * t)) * (0.9 + 0.1 * Math.abs(Math.cos(6 * t)));
+        pts.push(`${(Math.sin(t) * rr).toFixed(1)} ${(-Math.cos(t) * rr).toFixed(1)}`);
+      }
+      return G(`translate(${x} ${y}) rotate(${rot})`, [P('M' + pts.join(' L') + 'z', o.color, { sw: 1.5, off: 1.4 }), L(`M0 ${r * 0.9} V${-r * 0.4}`, { width: 0.8, stroke: IC.paleGreen })]);
+    };
+    const tops = [[24, 34, -40, 9.5], [36, 20, -20, 10], [50, 14, 0, 10.5], [64, 20, 20, 10], [76, 34, 40, 9.5], [42, 42, -10, 8.5], [58, 42, 12, 8.5]];
+    return [
+      ...stem(tops.map(([x, y]) => `M50 76 Q${(50 + x) / 2} ${(76 + y) / 2 + 8} ${x} ${y + 6}`).join(' '), IC.paleGreen, 1.8),
+      ...tops.map(([x, y, rot, r]) => lobed(x, y, r, rot)),
+      ...['M44 80 c-2 6-3 10-6 16 c4-4 8-9 10-16z', 'M48 80 c0 7 0 11 2 17 c2-6 2-10 2-17z', 'M52 80 c2 7 3 11 7 15 c-1-6-2-10-3-15z'].map(d => P(d, IC.cream, { sw: 1.3, off: 1 })),
+      L('M41 90 l-3 1 M50 92 l3 2 M57 90 l3 0', { width: 0.8 }),
+      P('M43 75 h14 v6 h-14z', IC.tan, { sw: 1.4 })
+    ];
+  },
+  // Culantro / sawtooth coriander: a rosette of long saw-edged blades
+  culantro: o => [
+    ...[-46, -28, -10, 10, 28, 46].map((r, i) => leafAt(50, 90, r, 74 - Math.abs(r) * 0.4, 9, i % 2 ? o.color : illoShade(o.color, -0.1), { teeth: 16, tip: 0.2, sw: 1.8 })),
+    leafAt(50, 90, -2, 60, 8.5, illoShade(o.color, 0.08), { teeth: 14, tip: 0.2, sw: 1.8 }),
+    P('M44 86 c2-4 10-4 12 0 l-4 8 h-4z', IC.cream, { sw: 1.4 })
+  ],
+  // Korean perilla (kkaennip): a stack of big round toothed leaves
+  kkaennip: o => {
+    const veins = (len) => [L(`M0 ${-len * 0.35} l-9 -6 M0 ${-len * 0.35} l9 -6 M0 ${-len * 0.6} l-7 -5 M0 ${-len * 0.6} l7 -5`, { width: 0.9, stroke: IC.paleGreen })];
+    return [
+      leafAt(46, 86, -22, 62, 24, illoShade(o.color, -0.18), { teeth: 14, tip: 0.5, mark: veins(62) }),
+      leafAt(54, 86, 20, 62, 24, illoShade(o.color, -0.08), { teeth: 14, tip: 0.5, mark: veins(62) }),
+      leafAt(50, 88, -2, 66, 26, o.color, { teeth: 14, tip: 0.5, mark: veins(66) })
+    ];
+  },
+  // Japanese shiso: crisp, sharply toothed leaves with a long point (green
+  // aojiso in front of purple akajiso)
+  shiso: o => [
+    leafAt(44, 88, -24, 60, 19, IC.purple, { teeth: 16, tip: 1.2, rib: IC.lilac }),
+    leafAt(54, 88, 14, 64, 20, o.color, { teeth: 16, tip: 1.2 })
+  ],
+  // Vietnamese perilla (tía tô): green on top, purple underneath
+  tiaTo: o => sprig([[50, 92], [48, 70], [52, 46], [50, 18]], {
+    stem: IC.purple, width: 2.6, at: [0.25, 0.55, 0.85], len: 26, w: 12, spread: 62,
+    color: (i, s) => (i + (s > 0 ? 1 : 0)) % 2 ? IC.purple : o.color, leaf: { teeth: 9, tip: 0.6, rib: IC.lilac }
+  })
+};
+
 // --- Ingredient → form rules ------------------------------------------------
 // First match wins. Patterns are tested against the English name, so they can
 // be as narrow as one ingredient; anything unmatched falls back by category.
@@ -724,14 +881,19 @@ const ILLO_RULES = [
   [/pandan/i, 'leaf', { color: IC.herb, kind: 'blades' }],
   [/betel|lolot/i, 'leaf', { color: IC.deepGreen, kind: 'heart' }],
   [/curry leaves/i, 'leaf', { color: IC.deepGreen, kind: 'sprig' }],
-  [/perilla|shiso|kkaennip/i, 'leaf', { color: IC.herb }],
+  [/kkaennip/i, 'herbs', { kind: 'kkaennip', color: IC.herb }],
+  [/tía tô|^perilla\/shiso/i, 'herbs', { kind: 'tiaTo', color: IC.herb }],
+  [/perilla|shiso/i, 'herbs', { kind: 'shiso', color: IC.herb }],
   [/lemongrass/i, 'stalks', { color: IC.paleGreen, thick: true, base: IC.cream }],
   [/chives/i, 'stalks', { color: IC.deepGreen, thin: true }],
   [/scallion|green onion|negi|leek/i, 'stalks', { color: IC.herb, base: IC.white }],
-  [/culantro|sawtooth|lao dill/i, 'herbs', { color: IC.herb, leaf: 'blade' }],
-  [/cilantro|coriander/i, 'herbs', { color: IC.herb, leaf: 'frilly' }],
-  [/thai basil/i, 'herbs', { color: IC.deepGreen, cap: IC.purple }],
-  [/basil|mint/i, 'herbs', { color: IC.herb }],
+  [/culantro|sawtooth/i, 'herbs', { kind: 'culantro', color: IC.deepGreen }],
+  [/lao dill|pak si/i, 'herbs', { kind: 'laoDill', color: IC.herb }],
+  [/cilantro|coriander/i, 'herbs', { kind: 'cilantro', color: IC.herb }],
+  [/thai basil/i, 'herbs', { kind: 'thaiBasil', color: IC.deepGreen }],
+  [/holy basil|krapao/i, 'herbs', { kind: 'holyBasil', color: IC.herb }],
+  [/vietnamese mint|rau răm/i, 'herbs', { kind: 'vietMint', color: IC.herb }],
+  [/mint/i, 'herbs', { kind: 'laoMint', color: '#7FA040' }],
   [/kangkong|water spinach|ong choy/i, 'greens', { kind: 'kangkong', color: IC.deepGreen }],
   [/spinach|sigeumchi/i, 'greens', { kind: 'spinach', color: IC.deepGreen }],
   [/choy sum/i, 'greens', { kind: 'choysum', color: IC.herb }],

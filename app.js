@@ -58,7 +58,10 @@ const INGREDIENT_ALIASES = {
   'thai chilies': 'thailand/thai-chilies',
   'kashmiri chilies': 'india/kashmiri-mirch',
   // Taiwan's only local soy entry is the thick paste; plain soy sauce is light soy
-  'taiwan:soy sauce': 'china/light-soy'
+  'taiwan:soy sauce': 'china/light-soy',
+  // Patis is fish sauce, but only its gloss says so, and glosses don't count
+  // as the local version (Padaek's gloss is also "Lao Fish Sauce")
+  'philippines:fish sauce': 'philippines/ph-fish-sauce'
 };
 // Plain staples and catch-alls: only an exact name links them
 const MATCH_EXACT_ONLY = ['shrimp', 'chicken', 'pork', 'beef', 'lamb', 'duck', 'egg', 'fish', 'squid', 'crab', 'flour', 'sugar', 'salt', 'butter', 'onion', 'rice', 'noodle', 'cucumber', 'carrot', 'mushroom', 'spinach', 'cabbage', 'herb', 'green', 'water', 'oyster', 'curry'];
@@ -71,6 +74,11 @@ const MATCH_FORM_WORDS = ['seed', 'powder', 'paste', 'leave', 'leaf', 'noodle', 
 // A query can name its ingredient plus what's made from it ("Lime juice",
 // "Garlic oil"); the reverse is not true ("Coconut" is not coconut oil)
 const MATCH_QUERY_SUFFIXES = [...MATCH_FORM_WORDS, 'juice', 'oil'];
+// Words that only say whose version an ingredient is or the state it's sold
+// in: "Korean Sesame Oil", "Fresh Ginger" and "Toasted Sesame Oil" are still
+// sesame oil and ginger. Any other word may make it a different product
+// ("Fried Garlic", "Fermented Tofu", "Silken Tofu")
+const MATCH_PLAIN_WORDS = ['fresh', 'toasted', 'chinese', 'japanese', 'korean', 'thai', 'vietnamese', 'indian', 'taiwanese', 'filipino', 'lao'];
 
 function matchWords(s) {
   return s.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim().split(' ')
@@ -112,6 +120,18 @@ function bestSameKind(candidates, qw) {
   return pick;
 }
 
+// A cuisine's own plain version of the query, judged by its main name and
+// never by a gloss ("Myoga (Japanese Ginger)" is not ginger): the query
+// behind plain words ("Korean Sesame Oil") or before a form word ("Turmeric
+// Powder"). Stricter than bestSameKind, because it beats an exact name in
+// another cuisine.
+function localVersion(local, qw) {
+  const withForm = new Set(MATCH_FORM_WORDS.map(w => qw + ' ' + w));
+  const plain = f => withForm.has(f)
+    || (f.endsWith(' ' + qw) && f.slice(0, -qw.length - 1).split(' ').every(w => MATCH_PLAIN_WORDS.includes(w)));
+  return local.find(e => e.name.replace(/\([^)]*\)/g, ' ').split('/').map(matchWords).some(plain));
+}
+
 const matchCache = new Map();
 function match(name, country) {
   const key = `${country}|${name}`;
@@ -130,10 +150,14 @@ function matchIngredient(name, country) {
   if (alias) return ingredientByKey[alias] || null;
   const named = e => entryForms(e).includes(qw);
   const local = countryEntries(country);
-  const exact = local.find(e => e.name.toLowerCase() === q) || local.find(named) || ingredientByName[q];
+  const exact = local.find(e => e.name.toLowerCase() === q) || local.find(named);
   if (exact) return exact;
-  if (qw.length < 4 || MATCH_EXACT_ONLY.includes(qw)) return ingredients.find(named) || null;
-  return bestSameKind(local, qw)
+  if (qw.length < 4 || MATCH_EXACT_ONLY.includes(qw)) return ingredientByName[q] || ingredients.find(named) || null;
+  // The dish's own version beats an exact name elsewhere: a Chinese dish's
+  // "Ginger" is China's Fresh Ginger, not Vietnam's Ginger
+  return localVersion(local, qw)
+    || ingredientByName[q]
+    || bestSameKind(local, qw)
     || ingredients.find(named)
     || (MATCH_LOCAL_ONLY.includes(qw) ? null : bestSameKind(ingredients, qw))
     || null;

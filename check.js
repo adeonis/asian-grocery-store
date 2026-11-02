@@ -18,7 +18,7 @@ const context = vm.createContext({ console, localStorage: { getItem: k => saved[
 for (const file of ['data/ingredients.js', 'data/dishes.js', 'data/techniques.js', 'data/starter.js', 'illustrations.js', 'app.js']) {
   vm.runInContext(fs.readFileSync(`${__dirname}/${file}`, 'utf8'), context, { filename: file });
 }
-const app = vm.runInContext(`({ INGREDIENTS, STARTER, ingredients, dishes, techniques, ingredientByKey, route, search, ACTIONS, dishByKey })`, context);
+const app = vm.runInContext(`({ INGREDIENTS, STARTER, ingredients, dishes, techniques, ingredientByKey, route, search, ACTIONS, dishByKey, match })`, context);
 
 const problems = [];
 const expect = (ok, message) => { if (!ok) problems.push(message); };
@@ -61,6 +61,17 @@ for (const href of hrefs) {
     expect(link === '#/' || !isHome(app.route(link).html), `${href} links to missing page ${link}`);
   }
 }
+
+// Ingredient links: a dish's own cuisine beats the same name elsewhere, but
+// only with its plain version of the thing
+const linkOf = (dishKey, name) => {
+  const d = app.dishByKey[dishKey];
+  return d.ingredients.includes(name) ? app.match(name, d.country)?.key : `no "${name}" in ${dishKey}`;
+};
+expect(linkOf('china/jiaozi', 'Ginger') === 'china/ginger', "Jiaozi's ginger should link to China's Fresh Ginger");
+expect(linkOf('china/jiaozi', 'Sesame oil') === 'china/sesame-oil', "Jiaozi's sesame oil should link to China's Toasted Sesame Oil");
+expect(!['thailand/fried-garlic', undefined].includes(linkOf('thailand/som-tam', 'Garlic')), "Som tam's garlic should link to garlic, not Fried Garlic");
+expect(!['laos/la-padaek', undefined].includes(linkOf('laos/laab', 'Fish sauce')), "Laab's fish sauce should link to fish sauce, not Padaek");
 
 // Search and actions
 expect(app.search('gochujang')[0]?.name === 'Gochujang', 'search for "gochujang" should find Gochujang first');
